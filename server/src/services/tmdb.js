@@ -23,6 +23,13 @@ const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 const TMDB_WEBSITE_BASE_URL = 'https://www.themoviedb.org';
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p';
 
+const TMDB_API_URL = new URL(TMDB_BASE_URL);
+const TMDB_API_ORIGIN = TMDB_API_URL.origin; // https://api.themoviedb.org
+const TMDB_API_BASE_PATH = TMDB_API_URL.pathname.replace(/\/$/, ''); // /3
+
+const TMDB_SITE_URL = new URL(TMDB_WEBSITE_BASE_URL);
+const TMDB_SITE_ORIGIN = TMDB_SITE_URL.origin; // https://www.themoviedb.org
+
 // Genre mappings (will be populated from API)
 let genreCache = { movie: null, tv: null };
 
@@ -40,14 +47,46 @@ function redactTmdbUrl(urlString) {
   return urlString.replace(/([?&]api_key=)[^&\s]+/gi, '$1[REDACTED]');
 }
 
+function isProbablyAbsoluteUrl(input) {
+  const s = String(input || '').trim();
+  return /^([a-zA-Z][a-zA-Z0-9+.-]*:)?\/\//.test(s);
+}
+
+function normalizeEndpoint(endpoint) {
+  const ep = String(endpoint || '').trim();
+  if (!ep) throw new Error('Invalid TMDB endpoint: empty');
+  // Prevent accidental absolute URLs like "https://..." or protocol-relative "//...".
+  if (isProbablyAbsoluteUrl(ep)) throw new Error('Invalid TMDB endpoint: absolute URL not allowed');
+  // Normalize to a leading slash.
+  return ep.startsWith('/') ? ep : `/${ep}`;
+}
+
+function assertAllowedUrl(url, { origin, pathPrefix }) {
+  if (!(url instanceof URL)) throw new Error('Invalid URL');
+  if (url.protocol !== 'https:') throw new Error('Blocked non-HTTPS outbound request');
+  if (url.username || url.password) throw new Error('Blocked URL with credentials');
+  if (origin && url.origin !== origin) throw new Error(`Blocked outbound request to untrusted origin: ${url.origin}`);
+  if (pathPrefix && !url.pathname.startsWith(pathPrefix)) {
+    throw new Error(`Blocked outbound request to untrusted path: ${url.pathname}`);
+  }
+}
+
 /**
  * Make a request to TMDB API
  */
 async function tmdbFetch(endpoint, apiKey, params = {}) {
-  const url = new URL(`${TMDB_BASE_URL}${endpoint}`);
+  const ep = normalizeEndpoint(endpoint);
+  const url = new URL(TMDB_API_ORIGIN);
+  url.pathname = `${TMDB_API_BASE_PATH}${ep}`;
+
+  // Defense-in-depth: ensure we only ever call TMDB API host and /3 path.
+  assertAllowedUrl(url, { origin: TMDB_API_ORIGIN, pathPrefix: `${TMDB_API_BASE_PATH}/` });
+
   url.searchParams.set('api_key', apiKey);
   
   Object.entries(params).forEach(([key, value]) => {
+    // Prevent callers from overriding api_key via params.
+    if (key === 'api_key') return;
     if (value !== undefined && value !== null && value !== '') {
       url.searchParams.set(key, value);
     }
@@ -123,7 +162,12 @@ function matchesLoose(haystack, needle) {
 }
 
 async function tmdbWebsiteFetchJson(endpoint, params = {}) {
-  const url = new URL(`${TMDB_WEBSITE_BASE_URL}${endpoint}`);
+  const ep = normalizeEndpoint(endpoint);
+  const url = new URL(TMDB_SITE_ORIGIN);
+  url.pathname = ep;
+
+  // Defense-in-depth: only call TMDB website host.
+  assertAllowedUrl(url, { origin: TMDB_SITE_ORIGIN });
 
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
