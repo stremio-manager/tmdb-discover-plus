@@ -724,12 +724,16 @@ router.post('/config', async (req, res) => {
 
     const baseUrl = getBaseUrl(req);
     const host = baseUrl.replace(/^https?:\/\//, '');
+    const manifestUrl = `${baseUrl}/${id}/manifest.json`;
     
     const response = {
       userId: id,
       catalogs: config.catalogs || [],
       preferences: config.preferences || {},
-      installUrl: `stremio://${host}/${id}/manifest.json`,
+      // Browser-friendly URL to the addon manifest
+      installUrl: manifestUrl,
+      // Optional deep-link for Stremio desktop app
+      stremioUrl: `stremio://${host}/${id}/manifest.json`,
       configureUrl: `${baseUrl}/configure/${id}`,
     };
     
@@ -837,11 +841,15 @@ router.put('/config/:userId', async (req, res) => {
 
     const baseUrl = getBaseUrl(req);
     const host = baseUrl.replace(/^https?:\/\//, '');
+    const manifestUrl = `${baseUrl}/${userId}/manifest.json`;
     res.json({
       userId: config.userId,
       catalogs: config.catalogs,
       preferences: config.preferences,
-      installUrl: `stremio://${host}/${userId}/manifest.json`,
+      // Browser-friendly URL to the addon manifest
+      installUrl: manifestUrl,
+      // Optional deep-link for Stremio desktop app
+      stremioUrl: `stremio://${host}/${userId}/manifest.json`,
       configureUrl: `${baseUrl}/configure/${userId}`,
     });
   } catch (error) {

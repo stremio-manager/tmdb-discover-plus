@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { X, Copy, Check, ExternalLink, Download } from 'lucide-react';
 
 // eslint-disable-next-line no-unused-vars
-export function InstallModal({ isOpen, onClose, installUrl, configureUrl, userId }) {
+export function InstallModal({ isOpen, onClose, installUrl, configureUrl, userId, stremioUrl }) {
   const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;
@@ -18,8 +18,17 @@ export function InstallModal({ isOpen, onClose, installUrl, configureUrl, userId
   };
 
   const handleInstall = () => {
-    window.location.href = installUrl;
+    // In browsers, stremio:// deep-links are often blocked.
+    // Stremio Web supports installing an addon by opening the Addons page with the manifest URL.
+    const manifestUrl = installUrl;
+    const stremioWebInstallUrl = `https://web.stremio.com/#/addons?addon=${encodeURIComponent(manifestUrl)}`;
+    window.open(stremioWebInstallUrl, '_blank', 'noopener,noreferrer');
   };
+
+  const manifestUrl = installUrl;
+  const desktopInstallUrl = stremioUrl || (typeof manifestUrl === 'string'
+    ? manifestUrl.replace(/^https?:\/\//, 'stremio://')
+    : '');
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -53,11 +62,11 @@ export function InstallModal({ isOpen, onClose, installUrl, configureUrl, userId
 
           {/* Manual Install Link */}
           <div className="install-link-box">
-            <div className="install-link-label">Manual Install URL</div>
-            <div className="install-link">{installUrl}</div>
+            <div className="install-link-label">Addon Manifest URL</div>
+            <div className="install-link">{manifestUrl}</div>
             <button 
               className="btn btn-secondary btn-sm copy-button"
-              onClick={() => handleCopy(installUrl)}
+              onClick={() => handleCopy(manifestUrl)}
             >
               {copied ? (
                 <>
@@ -72,6 +81,21 @@ export function InstallModal({ isOpen, onClose, installUrl, configureUrl, userId
               )}
             </button>
           </div>
+
+          {/* Desktop deep link (optional) */}
+          {desktopInstallUrl ? (
+            <div className="install-link-box" style={{ marginTop: '12px' }}>
+              <div className="install-link-label">Desktop Install URL (optional)</div>
+              <div className="install-link">{desktopInstallUrl}</div>
+              <button
+                className="btn btn-secondary btn-sm copy-button"
+                onClick={() => handleCopy(desktopInstallUrl)}
+              >
+                <Copy size={14} />
+                Copy URL
+              </button>
+            </div>
+          ) : null}
 
           {/* Configure Link */}
           <div className="install-link-box">
@@ -94,8 +118,8 @@ export function InstallModal({ isOpen, onClose, installUrl, configureUrl, userId
             marginTop: '16px'
           }}>
             <p className="text-sm">
-              <strong>💡 Tip:</strong> After installing, you can always return to your configuration page to edit your catalogs. 
-              Changes will automatically reflect in Stremio when you refresh.
+              <strong>Tip:</strong> You can always return to your configuration page to edit your catalogs.
+              Stremio may cache addon data—if you don’t see changes, refresh the Addons page or restart Stremio.
             </p>
           </div>
         </div>
@@ -105,7 +129,7 @@ export function InstallModal({ isOpen, onClose, installUrl, configureUrl, userId
             Close
           </button>
           <a 
-            href="https://web.stremio.com" 
+            href={`https://web.stremio.com/#/addons?addon=${encodeURIComponent(manifestUrl)}`}
             target="_blank" 
             rel="noopener noreferrer"
             className="btn btn-secondary"

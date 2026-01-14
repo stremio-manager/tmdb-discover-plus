@@ -321,6 +321,7 @@ function App() {
 
       setInstallData({
         installUrl: result.installUrl,
+        stremioUrl: result.stremioUrl,
         configureUrl: result.configureUrl,
         userId: result.userId,
       });
@@ -589,6 +590,7 @@ function App() {
         isOpen={showInstallModal}
         onClose={() => setShowInstallModal(false)}
         installUrl={installData?.installUrl}
+        stremioUrl={installData?.stremioUrl}
         configureUrl={installData?.configureUrl}
         userId={installData?.userId}
       />
