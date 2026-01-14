@@ -74,4 +74,38 @@ export async function run() {
         assert(res.data.installUrl, 'Response should contain installUrl');
         assert(res.data.stremioUrl, 'Response should contain stremioUrl');
     });
+
+    await runTest('Setup', 'DatePreset Persistence', async () => {
+        const importUserId = (await import('../utils.js')).getSharedUserId();
+        assert(importUserId, 'User ID not set from previous test');
+
+        // Create/update config with datePreset
+        const configData = {
+            tmdbApiKey: CONFIG.tmdbApiKey,
+            catalogs: [
+                {
+                    id: 'test-date-preset',
+                    name: 'Date Preset Test',
+                    type: 'movie',
+                    filters: {
+                        datePreset: 'last_30_days',
+                        sortBy: 'popularity.desc'
+                    }
+                }
+            ],
+            preferences: {}
+        };
+
+        const saveRes = await apiRequest(`/api/config/${importUserId}`, 'PUT', configData);
+        assert(saveRes.ok, `Save config with datePreset failed: ${saveRes.data.error || saveRes.status}`);
+
+        // Verify datePreset is persisted
+        const getRes = await apiRequest(`/api/config/${importUserId}?apiKey=${CONFIG.tmdbApiKey}`);
+        assert(getRes.ok, `Get config failed: ${getRes.status}`);
+
+        const savedCatalog = getRes.data.catalogs.find(c => c.id === 'test-date-preset' || c.name === 'Date Preset Test');
+        assert(savedCatalog, 'Date preset catalog not found');
+        assert(savedCatalog.filters?.datePreset === 'last_30_days',
+            `datePreset not persisted: expected 'last_30_days', got '${savedCatalog.filters?.datePreset}'`);
+    });
 }

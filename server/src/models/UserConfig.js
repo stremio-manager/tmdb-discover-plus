@@ -3,8 +3,8 @@ import crypto from 'crypto';
 
 // Catalog subdocument schema
 const catalogSchema = new mongoose.Schema({
-  _id: { 
-    type: String, 
+  _id: {
+    type: String,
     required: true,
     default: () => crypto.randomUUID()
   },
@@ -14,6 +14,7 @@ const catalogSchema = new mongoose.Schema({
     listType: { type: String, default: 'discover' },
     genres: [Number],
     excludeGenres: [Number],
+    genreMatchMode: { type: String, default: 'any' }, // 'any' (OR) or 'all' (AND)
     yearFrom: Number,
     yearTo: Number,
     ratingMin: Number,
@@ -36,6 +37,7 @@ const catalogSchema = new mongoose.Schema({
     certificationCountry: String,
     airDateFrom: String,
     airDateTo: String,
+    datePreset: String, // Dynamic date preset e.g. 'last_30_days', 'this_year'
     withNetworks: String,
     tvStatus: String,
     tvType: String,
@@ -51,23 +53,23 @@ const catalogSchema = new mongoose.Schema({
     watchMonetizationTypes: [String],
   },
   enabled: { type: Boolean, default: true },
-}, { 
+}, {
   _id: false,
   strict: true,
 });
 
 const userConfigSchema = new mongoose.Schema({
   // Unique user identifier (short, URL-friendly)
-  userId: { 
-    type: String, 
-    required: true, 
-    unique: true, 
-    index: true 
+  userId: {
+    type: String,
+    required: true,
+    unique: true,
+    index: true
   },
   // User's TMDB API key (encrypted in production)
-  tmdbApiKey: { 
-    type: String, 
-    required: true 
+  tmdbApiKey: {
+    type: String,
+    required: true
   },
   // Array of custom catalogs
   catalogs: [catalogSchema],
@@ -82,7 +84,7 @@ const userConfigSchema = new mongoose.Schema({
 });
 
 // Update timestamp on save
-userConfigSchema.pre('save', function(next) {
+userConfigSchema.pre('save', function (next) {
   this.updatedAt = new Date();
   next();
 });
