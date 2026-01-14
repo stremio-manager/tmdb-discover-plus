@@ -198,6 +198,29 @@
   color: #000;
 }
 
+/* Buy Me a Coffee widget (header sizing overrides)
+   The widget injects its own styles; we use higher specificity + !important for layout fit. */
+.bmc-header-button {
+  display: inline-flex;
+  align-items: center;
+}
+
+.bmc-header-button .bmc-btn {
+  height: 40px !important;
+  min-width: 0 !important;
+  padding: 0 14px !important;
+  border-radius: var(--radius-full) !important;
+}
+
+.bmc-header-button .bmc-btn svg {
+  height: 22px !important;
+}
+
+.bmc-header-button .bmc-btn-text {
+  font-size: 13px !important;
+  line-height: 1 !important;
+}
+
 /* Main Content */
 .main {
   flex: 1;
