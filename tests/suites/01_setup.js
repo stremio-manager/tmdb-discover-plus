@@ -45,4 +45,33 @@ export async function run() {
         assert(res.data.userId === importUserId, 'User ID mismatch');
         assert(res.data.catalogs.length > 0, 'Should have catalogs');
     });
+
+    await runTest('Setup', 'Update User Config (PUT)', async () => {
+        const importUserId = (await import('../utils.js')).getSharedUserId();
+        assert(importUserId, 'User ID not set from previous test');
+
+        const updateData = {
+            tmdbApiKey: CONFIG.tmdbApiKey,
+            catalogs: [
+                {
+                    id: 'test-basic-movie',
+                    name: 'Test Basic Movie Updated',
+                    type: 'movie',
+                    filters: {
+                        genres: ['28', '12'], // Action + Adventure
+                        sortBy: 'popularity.desc'
+                    }
+                }
+            ],
+            preferences: {
+                language: 'en-US'
+            }
+        };
+
+        const res = await apiRequest(`/api/config/${importUserId}`, 'PUT', updateData);
+        assert(res.ok, `Update config failed: ${res.data.error || res.status}`);
+        assert(res.data.userId === importUserId, 'User ID should match');
+        assert(res.data.installUrl, 'Response should contain installUrl');
+        assert(res.data.stremioUrl, 'Response should contain stremioUrl');
+    });
 }

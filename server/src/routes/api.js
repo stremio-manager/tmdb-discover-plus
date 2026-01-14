@@ -561,6 +561,58 @@ router.post('/config', strictRateLimit, async (req, res) => {
 });
 
 /**
+ * Update existing user configuration
+ */
+router.put('/config/:userId', strictRateLimit, async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { tmdbApiKey, catalogs, preferences } = req.body;
+
+        log.info('Update config request', { userId, catalogCount: catalogs?.length || 0 });
+
+        // Validate userId format
+        if (!isValidUserId(userId)) {
+            return res.status(400).json({ error: 'Invalid user ID format' });
+        }
+
+        if (!tmdbApiKey) {
+            return res.status(400).json({ error: 'TMDB API key required' });
+        }
+
+        // Validate API key format
+        if (!isValidApiKeyFormat(tmdbApiKey)) {
+            return res.status(400).json({ error: 'Invalid TMDB API key format' });
+        }
+
+        const config = await saveUserConfig({
+            userId,
+            tmdbApiKey,
+            catalogs: catalogs || [],
+            preferences: preferences || {},
+        });
+
+        const baseUrl = getBaseUrl(req);
+        const host = baseUrl.replace(/^https?:\/\//, '');
+        const manifestUrl = `${baseUrl}/${userId}/manifest.json`;
+
+        const response = {
+            userId,
+            catalogs: config.catalogs || [],
+            preferences: config.preferences || {},
+            installUrl: manifestUrl,
+            stremioUrl: `stremio://${host}/${userId}/manifest.json`,
+            configureUrl: `${baseUrl}/configure/${userId}`,
+        };
+
+        log.info('Config updated', { userId, catalogCount: response.catalogs.length });
+        res.json(response);
+    } catch (error) {
+        log.error('PUT /config/:userId error', { error: error.message });
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
  * Get user configuration
  */
 router.get('/config/:userId', async (req, res) => {
