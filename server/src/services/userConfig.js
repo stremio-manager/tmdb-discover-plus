@@ -180,6 +180,17 @@ async function getUserConfig(userId, overrideApiKey = null) {
  */
 async function saveUserConfig(config) {
   log.debug('Saving user config', { userId: config.userId, catalogCount: config.catalogs?.length || 0 });
+
+  // Defensive: ensure values used in Mongo queries are simple, validated strings.
+  const safeUserId = sanitizeString(config?.userId, 64);
+  if (!isValidUserId(safeUserId)) {
+    throw new Error('Invalid user ID format');
+  }
+
+  const safeTmdbApiKey = config?.tmdbApiKey ? sanitizeString(config.tmdbApiKey, 64) : null;
+  if (safeTmdbApiKey && !isValidApiKeyFormat(safeTmdbApiKey)) {
+    throw new Error('Invalid TMDB API key format');
+  }
   
   if (isConnected()) {
     try {
@@ -191,10 +202,10 @@ async function saveUserConfig(config) {
       
       // Use findOneAndUpdate to properly handle nested array updates
       const result = await UserConfig.findOneAndUpdate(
-        { userId: config.userId },
+        { userId: safeUserId },
         { 
           $set: {
-            tmdbApiKey: config.tmdbApiKey,
+            tmdbApiKey: safeTmdbApiKey,
             catalogs: processedCatalogs,
             preferences: config.preferences || {},
             updatedAt: new Date(),
@@ -215,8 +226,8 @@ async function saveUserConfig(config) {
       throw dbError;
     }
   }
-  memoryStore.set(config.userId, { ...config, _id: config.userId });
-  log.debug('Config saved to memory store', { userId: config.userId });
+  memoryStore.set(safeUserId, { ...config, userId: safeUserId, tmdbApiKey: safeTmdbApiKey, _id: safeUserId });
+  log.debug('Config saved to memory store', { userId: safeUserId });
   return config;
 }
 
@@ -880,7 +891,8 @@ router.get('/configs', async (req, res) => {
     res.set('Pragma', 'no-cache');
     res.set('Expires', '0');
     
-    const { apiKey } = req.query;
+    const apiKeyRaw = req.query?.apiKey;
+    const apiKey = typeof apiKeyRaw === 'string' ? sanitizeString(apiKeyRaw, 64) : '';
     
     if (!apiKey) {
       return res.status(400).json({ error: 'API key required' });
@@ -934,11 +946,18 @@ router.get('/configs', async (req, res) => {
  */
 router.delete('/config/:userId', async (req, res) => {
   try {
-    const { userId } = req.params;
-    const { apiKey } = req.query;
+    const userIdRaw = req.params?.userId;
+    const userId = typeof userIdRaw === 'string' ? sanitizeString(userIdRaw, 64) : '';
+    const apiKeyRaw = req.query?.apiKey;
+    const apiKey = typeof apiKeyRaw === 'string' ? sanitizeString(apiKeyRaw, 64) : '';
     
     if (!isValidUserId(userId)) {
       return res.status(400).json({ error: 'Invalid user ID format' });
+    }
+
+    // If apiKey is provided, validate it before using it in the DB query.
+    if (apiKey && !isValidApiKeyFormat(apiKey)) {
+      return res.status(400).json({ error: 'Invalid API key format' });
     }
     
     log.info('Delete config request', { userId, hasApiKey: !!apiKey, dbConnected: isConnected() });
@@ -979,8 +998,13 @@ router.get('/debug/config/:userId', async (req, res) => {
   }
   
   try {
-    const { userId } = req.params;
+    const userIdRaw = req.params?.userId;
+    const userId = typeof userIdRaw === 'string' ? sanitizeString(userIdRaw, 64) : '';
     log.debug('Debug config request', { userId });
+
+    if (!isValidUserId(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID format' });
+    }
     
     if (!isConnected()) {
       return res.json({ 
