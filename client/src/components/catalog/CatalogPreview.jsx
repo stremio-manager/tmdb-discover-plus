@@ -4,8 +4,7 @@ export function CatalogPreview({
     loading,
     error,
     data,
-    onRetry,
-    onLoadPreview
+    onRetry
 }) {
     return (
         <div className="preview-panel-container">

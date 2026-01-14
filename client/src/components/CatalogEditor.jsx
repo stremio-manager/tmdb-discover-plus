@@ -245,7 +245,7 @@ export function CatalogEditor({
   }, []);
 
   // Get genre state for tri-state display
-  const getGenreState = useCallback((genreId) => {
+  const _getGenreState = useCallback((genreId) => {
     const included = localCatalog?.filters?.genres || [];
     const excluded = localCatalog?.filters?.excludeGenres || [];
     if (included.includes(genreId)) return 'include';
@@ -688,7 +688,7 @@ export function CatalogEditor({
     handleFiltersChange(isMovie ? 'releaseDateTo' : 'airDateTo', undefined);
   }, [localCatalog?.type, handleFiltersChange]);
 
-  const handleProviderToggle = useCallback((providerId) => {
+  const _handleProviderToggle = useCallback((providerId) => {
     setLocalCatalog(prev => {
       const current = prev || DEFAULT_CATALOG;
       const currentProviders = current.filters?.watchProviders || [];
@@ -945,7 +945,7 @@ export function CatalogEditor({
   const catalogType = localCatalog?.type || 'movie';
   const isMovie = catalogType === 'movie';
   const currentGenres = genres[catalogType] || [];
-  const genresLoadedForType = Array.isArray(currentGenres) && currentGenres.length > 0;
+  const _genresLoadedForType = Array.isArray(currentGenres) && currentGenres.length > 0;
   const selectedGenres = localCatalog?.filters?.genres || [];
   const excludedGenres = localCatalog?.filters?.excludeGenres || [];
   const currentCertifications = certifications[catalogType] || {};

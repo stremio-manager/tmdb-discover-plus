@@ -339,7 +339,7 @@ export function useAppController() {
                         preferences: {},
                     });
                     window.location.href = `/?userId=${newConfig.userId}`;
-                } catch (err) {
+                } catch {
                     addToast('Failed to create new configuration', 'error');
                 }
             }

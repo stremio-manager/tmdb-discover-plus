@@ -55,6 +55,28 @@ jobs:
       - name: Build client
         run: cd client && npm run build
 
+      - name: Run E2E Tests
+        env:
+          PORT: 7000
+          TEST_BASE_URL: http://localhost:7000
+          TEST_TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+        run: |
+          # Start server in background
+          node server/src/index.js &
+          SERVER_PID=$!
+          
+          # Wait for server to be ready
+          sleep 5
+          
+          # Run tests
+          node tests/runner.js
+          TEST_EXIT=$?
+          
+          # Cleanup
+          kill $SERVER_PID 2>/dev/null || true
+          
+          exit $TEST_EXIT
+
   # ============================================
   # Deploy to BeamUp (only on main push)
   # ============================================
