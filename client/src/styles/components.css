@@ -1045,11 +1045,12 @@ input[type="date"].input::-webkit-calendar-picker-indicator {
   inset: 0;
   background: rgba(0, 0, 0, 0.7);
   display: flex;
-  align-items: center;
+  /* align-items: center; Removed to prevent cutoff */
   justify-content: center;
   z-index: 1000;
   padding: 24px;
   animation: fadeIn var(--transition-fast);
+  overflow-y: auto;
 }
 
 .modal {
@@ -1059,6 +1060,7 @@ input[type="date"].input::-webkit-calendar-picker-indicator {
   max-width: 500px;
   width: 100%;
   animation: slideUp var(--transition-normal);
+  margin: auto;
 }
 
 .modal-header {
