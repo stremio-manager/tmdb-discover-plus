@@ -58,15 +58,26 @@ jobs:
       - name: Run E2E Tests
         env:
           PORT: 7000
-          TEST_BASE_URL: http://localhost:7000
+          TEST_BASE_URL: http://127.0.0.1:7000
           TEST_TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
         run: |
           # Start server in background
           node server/src/index.js &
           SERVER_PID=$!
           
-          # Wait for server to be ready
-          sleep 5
+          # Wait for server to be ready (with health check)
+          echo "Waiting for server to be ready..."
+          for i in {1..30}; do
+            if curl -s http://127.0.0.1:7000/health > /dev/null 2>&1; then
+              echo "Server is ready!"
+              break
+            fi
+            echo "Attempt $i/30 - waiting..."
+            sleep 1
+          done
+          
+          # Verify server is responding
+          curl -s http://127.0.0.1:7000/health || { echo "Server failed to start"; kill $SERVER_PID 2>/dev/null; exit 1; }
           
           # Run tests
           node tests/runner.js
