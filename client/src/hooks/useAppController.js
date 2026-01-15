@@ -102,12 +102,8 @@ export function useAppController() {
     useEffect(() => {
         if (urlUserId) {
             setPageLoading(true);
-            const localKey = config.apiKey;
-            api.getConfig(urlUserId, localKey)
+            config.loadConfig(urlUserId)
                 .then(data => {
-                    config.setUserId(data.userId);
-                    config.setCatalogs(data.catalogs || []);
-                    config.setPreferences(data.preferences || {});
                     if (data.catalogs?.length > 0) {
                         setActiveCatalog(data.catalogs[0]);
                     }
@@ -129,11 +125,8 @@ export function useAppController() {
         if (!urlUserId) return;
         if (config.apiKey) {
             setPageLoading(true);
-            api.getConfig(urlUserId, config.apiKey)
+            config.loadConfig(urlUserId)
                 .then((data) => {
-                    config.setUserId(data.userId);
-                    config.setCatalogs(data.catalogs || []);
-                    config.setPreferences(data.preferences || {});
                     if (data.catalogs?.length > 0) setActiveCatalog(data.catalogs[0]);
                 })
                 .catch((err) => console.error('[App] Re-fetch error:', err))
@@ -178,7 +171,9 @@ export function useAppController() {
                 config.setUserId(refreshed.userId);
                 config.setCatalogs(refreshed.catalogs || result.catalogs || []);
                 config.setPreferences(refreshed.preferences || result.preferences || {});
+                config.setPreferences(refreshed.preferences || result.preferences || {});
                 if (refreshed.catalogs?.length > 0) setActiveCatalog(refreshed.catalogs[0]);
+                config.markAsSaved(); // Reset dirty state after save/create
             } catch (err) {
                 console.warn('Unable to re-fetch config after save:', err);
             } finally {

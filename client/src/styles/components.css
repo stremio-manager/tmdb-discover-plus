@@ -3631,24 +3631,12 @@ input[type="date"] {
 }
 
 /* Mobile Searchable Select */
+/* Mobile Searchable Select - Standard positioning */
 @media (max-width: 768px) {
-
-  .searchable-select-dropdown,
-  .multi-select-dropdown,
-  .search-input-dropdown {
-    position: fixed;
-    top: auto !important;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    max-height: 60vh;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    z-index: 10000 !important;
-  }
 
   .searchable-select-options,
   .multi-select-options {
-    max-height: 50vh;
+    max-height: 40vh;
   }
 }
 
@@ -4173,24 +4161,10 @@ input[type="date"] {
     justify-content: center;
   }
 
+  /* Dropdown menu inherits standard absolute positioning */
   .config-dropdown-menu {
-    position: fixed;
-    top: auto;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    min-width: 100%;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    max-height: 60vh;
-    z-index: 10000;
-  }
-
-  .config-dropdown-list {
-    max-height: 50vh;
-  }
-
-  .config-dropdown-summary {
-    display: none;
+    width: 100%;
+    min-width: 280px;
   }
 }
 
