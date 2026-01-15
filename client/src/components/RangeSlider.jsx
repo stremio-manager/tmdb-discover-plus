@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { LabelWithTooltip } from './Tooltip';
 
 /**
@@ -16,10 +16,12 @@ export function RangeSlider({
     max,
     step = 1,
     value = [min, max],
-    onChange,
-    formatValue = (v) => v,
-    showInputs = false
+    onChange
 }) {
+    // Extract values for dependency arrays
+    const minVal = value[0];
+    const maxVal = value[1];
+
     // Store as strings to allow free text editing (including empty)
     const [minInputValue, setMinInputValue] = useState(String(value[0]));
     const [maxInputValue, setMaxInputValue] = useState(String(value[1]));
@@ -27,17 +29,7 @@ export function RangeSlider({
     const [isEditingMax, setIsEditingMax] = useState(false);
 
     // Sync local state when value prop changes (but not while editing)
-    useEffect(() => {
-        if (!isEditingMin) {
-            setMinInputValue(String(value[0]));
-        }
-    }, [value[0], isEditingMin]);
 
-    useEffect(() => {
-        if (!isEditingMax) {
-            setMaxInputValue(String(value[1]));
-        }
-    }, [value[1], isEditingMax]);
 
     // Handle min input change - store as string, allow empty
     const handleMinChange = useCallback((e) => {
@@ -135,10 +127,11 @@ export function RangeSlider({
                         inputMode="numeric"
                         pattern="[0-9]*\.?[0-9]*"
                         className="range-input-field"
-                        value={minInputValue}
+                        value={isEditingMin ? minInputValue : String(minVal)}
                         onChange={handleMinChange}
                         onFocus={(e) => {
                             setIsEditingMin(true);
+                            setMinInputValue(String(minVal));
                             handleFocus(e);
                         }}
                         onBlur={commitMinValue}
@@ -151,10 +144,11 @@ export function RangeSlider({
                         inputMode="numeric"
                         pattern="[0-9]*\.?[0-9]*"
                         className="range-input-field"
-                        value={maxInputValue}
+                        value={isEditingMax ? maxInputValue : String(maxVal)}
                         onChange={handleMaxChange}
                         onFocus={(e) => {
                             setIsEditingMax(true);
+                            setMaxInputValue(String(maxVal));
                             handleFocus(e);
                         }}
                         onBlur={commitMaxValue}
@@ -215,20 +209,14 @@ export function SingleSlider({
     max,
     step = 1,
     value = min,
-    onChange,
-    formatValue = (v) => v,
-    showInput = false
+    onChange
 }) {
     // Store as string to allow free text editing
     const [inputValue, setInputValue] = useState(String(value));
     const [isEditing, setIsEditing] = useState(false);
 
     // Sync from prop when not editing
-    useEffect(() => {
-        if (!isEditing) {
-            setInputValue(String(value));
-        }
-    }, [value, isEditing]);
+
 
     const handleInputChange = (e) => {
         setInputValue(e.target.value);
@@ -283,10 +271,11 @@ export function SingleSlider({
                     inputMode="numeric"
                     pattern="[0-9]*\.?[0-9]*"
                     className="range-input-field single"
-                    value={inputValue}
+                    value={isEditing ? inputValue : String(value)}
                     onChange={handleInputChange}
                     onFocus={(e) => {
                         setIsEditing(true);
+                        setInputValue(String(value));
                         handleFocus(e);
                     }}
                     onBlur={commitValue}

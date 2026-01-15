@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Eye, Loader, RefreshCw, ImageOff, Star, CheckCircle } from 'lucide-react';
 
 export function CatalogPreview({
@@ -8,17 +8,18 @@ export function CatalogPreview({
     onRetry
 }) {
     const [showUpdated, setShowUpdated] = useState(false);
-    const [prevDataRef, setPrevDataRef] = useState(null);
+    const prevDataRef = useRef(null);
 
     // Show "Results Updated" feedback when data changes
     useEffect(() => {
-        if (data && data !== prevDataRef && prevDataRef !== null) {
-            setShowUpdated(true);
+        if (data && data !== prevDataRef.current && prevDataRef.current !== null) {
+            setTimeout(() => setShowUpdated(true), 0);
             const timer = setTimeout(() => setShowUpdated(false), 1500);
+            prevDataRef.current = data;
             return () => clearTimeout(timer);
         }
-        setPrevDataRef(data);
-    }, [data, prevDataRef]);
+        prevDataRef.current = data;
+    }, [data]);
 
     return (
         <div className={`preview-panel-container ${showUpdated ? 'preview-updated' : ''}`}>
