@@ -70,6 +70,10 @@ router.post('/validate-key', async (req, res) => {
 
 router.get('/configs', requireAuth, resolveApiKey, async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+
     const configs = await getConfigsByApiKey(req.apiKey);
     const safeConfigs = configs.map((c) => ({
       userId: c.userId,
