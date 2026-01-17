@@ -219,9 +219,17 @@ export async function saveUserConfig(config) {
     }
   }
 
+  // Compute apiKeyId for memory store too
+  const apiKeyForHash = rawApiKey || (encryptedApiKey ? decrypt(encryptedApiKey) : null);
+  let computedApiKeyId = config.apiKeyId;
+  if (!computedApiKeyId && apiKeyForHash) {
+    computedApiKeyId = computeApiKeyId(apiKeyForHash);
+  }
+
   const memConfig = {
     ...config,
     userId: safeUserId,
+    apiKeyId: computedApiKeyId,
     tmdbApiKey: rawApiKey,
     tmdbApiKeyEncrypted: encryptedApiKey,
     configName: config.configName || '',
