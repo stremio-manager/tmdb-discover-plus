@@ -114,27 +114,11 @@ export async function run() {
     const res = await post('/api/auth/login', { apiKey: CONFIG.tmdbApiKey });
 
     assertEqual(res.status, 200, 'Status code');
+    assert(res.data.token, 'Should return token');
+    assert(res.data.userId, 'Should return userId');
 
-    if (res.data.multipleConfigs) {
-      // User has multiple configs - need to select one
-      assertArray(res.data.configs, 1, 'Should have configs');
-
-      const firstConfig = res.data.configs[0];
-      const selectRes = await post('/api/auth/select-config', {
-        apiKey: CONFIG.tmdbApiKey,
-        userId: firstConfig.userId,
-      });
-
-      assertOk(selectRes, 'Config selection');
-      assert(selectRes.data.token, 'Should return token');
-
-      sessionToken = selectRes.data.token;
-      userId = selectRes.data.userId;
-    } else {
-      assert(res.data.token, 'Should return token');
-      sessionToken = res.data.token;
-      userId = res.data.userId;
-    }
+    sessionToken = res.data.token;
+    userId = res.data.userId;
 
     // Save for other tests
     setSharedData('sessionToken', sessionToken);
@@ -175,27 +159,7 @@ export async function run() {
     assertEqual(res.status, 401, 'Should require auth');
   });
 
-  // ==========================================
-  // Legacy API Key Authentication
-  // ==========================================
-
-  await runTest(SUITE, 'Legacy API key auth still works via query param', async () => {
-    const res = await get(`/api/genres/movie?apiKey=${encodeURIComponent(CONFIG.tmdbApiKey)}`);
-    assertOk(res, 'Legacy auth request');
-    assertArray(res.data, 1, 'Should return genres');
-  });
-
-  await runTest(SUITE, 'Protected POST route accepts legacy API key in body', async () => {
-    const res = await post('/api/preview', {
-      apiKey: CONFIG.tmdbApiKey,
-      type: 'movie',
-      filters: { genres: ['28'] },
-      page: 1,
-    });
-
-    assertOk(res, 'Preview with legacy auth');
-    assertArray(res.data.metas, 1, 'Should return results');
-  });
+  // Note: Legacy API key authentication has been removed in favor of JWT tokens
 
   // ==========================================
   // Logout Tests

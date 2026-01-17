@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import { nanoid } from 'nanoid';
-import { generateToken, clearApiKeyCache } from '../utils/authMiddleware.js';
+import {
+  generateToken,
+  verifyToken,
+  computeApiKeyId,
+} from '../utils/authMiddleware.js';
 import { encrypt } from '../utils/encryption.js';
 import {
   getUserConfig,
@@ -18,11 +22,12 @@ const log = createLogger('auth');
 
 /**
  * POST /api/auth/login
- * Authenticates a user with their TMDB API key and returns a session token
+ * Authenticates with TMDB API key and returns a session token.
+ * Token is tied to the API key, not a specific config.
  */
 router.post('/login', strictRateLimit, async (req, res) => {
   try {
-    const { apiKey, userId: requestedUserId, rememberMe } = req.body;
+    const { apiKey, userId: requestedUserId, rememberMe = true } = req.body;
 
     if (!apiKey) {
       return res.status(400).json({ error: 'API key is required' });
@@ -32,13 +37,12 @@ router.post('/login', strictRateLimit, async (req, res) => {
       return res.status(400).json({ error: 'Invalid API key format' });
     }
 
-    // Validate API key with TMDB
     const validation = await tmdb.validateApiKey(apiKey);
     if (!validation.valid) {
       return res.status(401).json({ error: 'Invalid TMDB API key' });
     }
 
-    // If a specific userId was requested (e.g., from configure URL), verify ownership
+    // If a specific userId was requested, verify ownership
     if (requestedUserId) {
       if (!isValidUserId(requestedUserId)) {
         return res.status(400).json({ error: 'Invalid user ID format' });
@@ -53,8 +57,18 @@ router.post('/login', strictRateLimit, async (req, res) => {
           });
         }
 
-        // Generate token for existing config
-        const tokenData = generateToken(requestedUserId, rememberMe);
+        // Fetch all configs for this API key to return full list
+        const allConfigsRaw = await getConfigsByApiKey(apiKey);
+        const allConfigs = allConfigsRaw.map((c) => ({
+          userId: c.userId,
+          configName: c.configName || '',
+          catalogs: c.catalogs || [],
+          preferences: c.preferences || {},
+          createdAt: c.createdAt,
+          updatedAt: c.updatedAt,
+        }));
+
+        const tokenData = generateToken(apiKey, rememberMe);
         log.info('User authenticated for existing config', { userId: requestedUserId });
 
         return res.json({
@@ -62,6 +76,7 @@ router.post('/login', strictRateLimit, async (req, res) => {
           userId: requestedUserId,
           configName: existingConfig.configName || '',
           isNewUser: false,
+          configs: allConfigs,
         });
       }
     }
@@ -70,13 +85,11 @@ router.post('/login', strictRateLimit, async (req, res) => {
     const existingConfigs = await getConfigsByApiKey(apiKey);
 
     if (existingConfigs.length > 0) {
-      // User has existing configs - auto-select the most recently updated one
       existingConfigs.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
       const config = existingConfigs[0];
-      const tokenData = generateToken(config.userId, rememberMe);
-      log.info('User authenticated with config', { userId: config.userId, totalConfigs: existingConfigs.length });
+      const tokenData = generateToken(apiKey, rememberMe);
+      log.info('User authenticated', { userId: config.userId, totalConfigs: existingConfigs.length });
 
-      // Return all configs for immediate loading in the dashboard
       const allConfigs = existingConfigs.map((c) => ({
         userId: c.userId,
         configName: c.configName || '',
@@ -101,13 +114,13 @@ router.post('/login', strictRateLimit, async (req, res) => {
 
     await saveUserConfig({
       userId: newUserId,
-      tmdbApiKey: apiKey, // Will be encrypted by configService
+      tmdbApiKey: apiKey,
       tmdbApiKeyEncrypted: encryptedKey,
       catalogs: [],
       preferences: {},
     });
 
-    const tokenData = generateToken(newUserId, rememberMe);
+    const tokenData = generateToken(apiKey, rememberMe);
     log.info('New user created', { userId: newUserId });
 
     return res.json({
@@ -123,76 +136,17 @@ router.post('/login', strictRateLimit, async (req, res) => {
 });
 
 /**
- * POST /api/auth/select-config
- * Selects a specific config when user has multiple configs
- */
-router.post('/select-config', strictRateLimit, async (req, res) => {
-  try {
-    const { apiKey, userId } = req.body;
-
-    if (!apiKey || !userId) {
-      return res.status(400).json({ error: 'API key and userId are required' });
-    }
-
-    if (!isValidApiKeyFormat(apiKey) || !isValidUserId(userId)) {
-      return res.status(400).json({ error: 'Invalid format' });
-    }
-
-    const config = await getUserConfig(userId);
-    if (!config) {
-      return res.status(404).json({ error: 'Configuration not found' });
-    }
-
-    const storedKey = getApiKeyFromConfig(config);
-    if (storedKey !== apiKey) {
-      return res.status(403).json({ error: 'API key does not match' });
-    }
-
-    const tokenData = generateToken(userId);
-    log.info('Config selected', { userId });
-
-    return res.json({
-      ...tokenData,
-      userId,
-      configName: config.configName || '',
-    });
-  } catch (error) {
-    log.error('Select config error', { error: error.message });
-    return res.status(500).json({ error: 'Failed to select configuration' });
-  }
-});
-
-/**
  * POST /api/auth/logout
- * Clears the server-side cache for the user (token invalidation is client-side)
+ * Client-side token invalidation; server just acknowledges.
  */
-router.post('/logout', async (req, res) => {
-  try {
-    const bearerToken = req.headers.authorization?.replace('Bearer ', '');
-
-    if (bearerToken) {
-      const jwt = await import('jsonwebtoken');
-      try {
-        const decoded = jwt.default.decode(bearerToken);
-        if (decoded?.userId) {
-          clearApiKeyCache(decoded.userId);
-          log.info('User logged out', { userId: decoded.userId });
-        }
-      } catch {
-        // Token decode failed, ignore
-      }
-    }
-
-    return res.json({ success: true });
-  } catch (error) {
-    log.error('Logout error', { error: error.message });
-    return res.status(500).json({ error: 'Logout failed' });
-  }
+router.post('/logout', (req, res) => {
+  return res.json({ success: true });
 });
 
 /**
  * GET /api/auth/verify
- * Verifies if the current token is valid
+ * Verifies if the current token is valid.
+ * Returns userId from the most recent config for this API key.
  */
 router.get('/verify', async (req, res) => {
   const bearerToken = req.headers.authorization?.replace('Bearer ', '');
@@ -201,25 +155,30 @@ router.get('/verify', async (req, res) => {
     return res.status(401).json({ valid: false, error: 'No token provided' });
   }
 
-  try {
-    const jwt = await import('jsonwebtoken');
-    const decoded = jwt.default.verify(bearerToken, process.env.JWT_SECRET);
+  const decoded = verifyToken(bearerToken);
+  if (!decoded || !decoded.apiKeyId) {
+    return res.status(401).json({ valid: false, error: 'Invalid or expired token' });
+  }
 
-    const config = await getUserConfig(decoded.userId);
-    if (!config) {
-      return res.status(401).json({ valid: false, error: 'Configuration not found' });
+  try {
+    // Find a config that matches this apiKeyId to return userId for client navigation
+    const allConfigs = await getConfigsByApiKey(null, decoded.apiKeyId);
+
+    if (!allConfigs || allConfigs.length === 0) {
+      return res.status(401).json({ valid: false, error: 'No configurations found' });
     }
+
+    allConfigs.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+    const config = allConfigs[0];
 
     return res.json({
       valid: true,
-      userId: decoded.userId,
+      userId: config.userId,
       configName: config.configName || '',
     });
   } catch (error) {
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ valid: false, error: 'Token expired' });
-    }
-    return res.status(401).json({ valid: false, error: 'Invalid token' });
+    log.error('Verify error', { error: error.message });
+    return res.status(401).json({ valid: false, error: 'Verification failed' });
   }
 });
 

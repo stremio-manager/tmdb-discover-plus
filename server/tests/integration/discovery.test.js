@@ -15,28 +15,31 @@
  * - Edge cases
  */
 
-import { runTest, post, assert, assertOk, assertArray } from '../helpers/utils.js';
-import { CONFIG } from '../helpers/config.js';
+import {
+  runTest,
+  post,
+  assert,
+  assertOk,
+  assertArray,
+  getAuthHeaders,
+  loginAndGetToken,
+} from '../helpers/utils.js';
 
 const SUITE = 'Discovery';
 
 /**
- * Helper to test the preview endpoint
+ * Helper to test the preview endpoint (requires auth)
  */
 async function testPreview(filters, type = 'movie', page = 1) {
-  const body = {
-    apiKey: CONFIG.tmdbApiKey,
-    type,
-    filters,
-    page,
-  };
-
-  const res = await post('/api/preview', body);
+  const body = { type, filters, page };
+  const res = await post('/api/preview', body, { headers: getAuthHeaders() });
   assertOk(res, `Preview (${type}) with filters: ${JSON.stringify(filters).substring(0, 50)}`);
   return res.data;
 }
 
 export async function run() {
+  // Ensure we're authenticated before running tests
+  await loginAndGetToken();
   // ==========================================
   // Core Genre Filters
   // ==========================================

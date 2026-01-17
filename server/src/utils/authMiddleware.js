@@ -1,7 +1,7 @@
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { createLogger } from './logger.js';
 import { getUserConfig, getApiKeyFromConfig } from '../services/configService.js';
-import { decrypt, isEncrypted } from './encryption.js';
 
 const log = createLogger('auth');
 
@@ -16,16 +16,28 @@ function getJwtSecret() {
   return secret;
 }
 
-export function generateToken(userId, rememberMe = true) {
+/**
+ * Computes a deterministic, non-reversible identifier for an API key.
+ * Uses HMAC-SHA256 keyed with JWT_SECRET.
+ */
+export function computeApiKeyId(apiKey) {
+  return crypto.createHmac('sha256', getJwtSecret()).update(apiKey).digest('hex');
+}
+
+/**
+ * Generates a JWT containing the apiKeyId.
+ * @param {string} apiKey - The TMDB API key
+ * @param {boolean} rememberMe - If true, token expires in 7 days; otherwise 24 hours
+ */
+export function generateToken(apiKey, rememberMe = true) {
+  const apiKeyId = computeApiKeyId(apiKey);
   const expiresIn = rememberMe ? JWT_EXPIRY_PERSISTENT : JWT_EXPIRY_SESSION;
-  const token = jwt.sign({ userId }, getJwtSecret(), { expiresIn });
+  const token = jwt.sign({ apiKeyId }, getJwtSecret(), { expiresIn });
   return { token, expiresIn };
 }
 
 /**
- * Verifies a JWT token and returns the decoded payload
- * @param {string} token - The JWT token to verify
- * @returns {object|null} - Decoded payload or null if invalid
+ * Verifies a JWT and returns the decoded payload.
  */
 export function verifyToken(token) {
   try {
@@ -40,101 +52,79 @@ export function verifyToken(token) {
   }
 }
 
-// In-memory cache for API keys (5 minute TTL)
-const apiKeyCache = new Map();
-const CACHE_TTL = 5 * 60 * 1000;
-
 /**
- * Gets API key with caching to reduce DB lookups
- * @param {string} userId - The user ID
- * @returns {Promise<string|null>} - The API key or null
- */
-export async function getCachedApiKey(userId) {
-  const cached = apiKeyCache.get(userId);
-  if (cached && Date.now() < cached.expiresAt) {
-    return cached.apiKey;
-  }
-
-  const config = await getUserConfig(userId);
-  const apiKey = getApiKeyFromConfig(config);
-
-  if (apiKey) {
-    apiKeyCache.set(userId, {
-      apiKey,
-      expiresAt: Date.now() + CACHE_TTL,
-    });
-  }
-
-  return apiKey;
-}
-
-/**
- * Clears cached API key for a user (call after key update)
- * @param {string} userId - The user ID
- */
-export function clearApiKeyCache(userId) {
-  apiKeyCache.delete(userId);
-}
-
-/**
- * Express middleware that requires authentication
- * Supports both JWT tokens and legacy API key authentication
+ * Middleware: Requires a valid JWT.
+ * Sets `req.apiKeyId` from the token.
+ * Does NOT set `req.apiKey` - use `requireConfigOwnership` for config-specific routes.
  */
 export async function requireAuth(req, res, next) {
   const bearerToken = req.headers.authorization?.replace('Bearer ', '');
-  const legacyApiKey = req.query.apiKey || req.body?.apiKey;
 
-  // New path: JWT authentication
-  if (bearerToken) {
-    const decoded = verifyToken(bearerToken);
-    if (!decoded) {
-      return res.status(401).json({ error: 'Invalid or expired token' });
-    }
-
-    try {
-      const apiKey = await getCachedApiKey(decoded.userId);
-      if (!apiKey) {
-        return res.status(401).json({ error: 'Configuration not found' });
-      }
-
-      req.userId = decoded.userId;
-      req.apiKey = apiKey;
-      return next();
-    } catch (error) {
-      log.error('Auth middleware error', { error: error.message });
-      return res.status(500).json({ error: 'Authentication failed' });
-    }
+  if (!bearerToken) {
+    return res.status(401).json({ error: 'Authentication required' });
   }
 
-  // Legacy path: API key in query/body (backward compatibility)
-  if (legacyApiKey) {
-    log.debug('Legacy API key auth used', { path: req.path });
-    req.apiKey = legacyApiKey;
-    return next();
+  const decoded = verifyToken(bearerToken);
+  if (!decoded || !decoded.apiKeyId) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
   }
 
-  return res.status(401).json({ error: 'Authentication required' });
+  req.apiKeyId = decoded.apiKeyId;
+  next();
 }
 
 /**
- * Optional authentication middleware - sets user info if token present, continues if not
+ * Middleware: Verifies that the authenticated user owns the config specified in `req.params.userId`.
+ * Must be used AFTER `requireAuth`.
+ * Sets `req.config` and `req.apiKey` on success.
+ */
+export async function requireConfigOwnership(req, res, next) {
+  const { userId } = req.params;
+
+  if (!userId) {
+    return res.status(400).json({ error: 'User ID required in path' });
+  }
+
+  try {
+    const config = await getUserConfig(userId);
+    if (!config) {
+      return res.status(404).json({ error: 'Configuration not found' });
+    }
+
+    const configApiKey = getApiKeyFromConfig(config);
+    if (!configApiKey) {
+      log.error('Config has no API key', { userId });
+      return res.status(500).json({ error: 'Configuration error' });
+    }
+
+    const expectedApiKeyId = computeApiKeyId(configApiKey);
+
+    if (req.apiKeyId !== expectedApiKeyId) {
+      log.warn('Ownership check failed', { userId, tokenApiKeyId: req.apiKeyId?.slice(0, 8) });
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    req.config = config;
+    req.apiKey = configApiKey;
+    next();
+  } catch (error) {
+    log.error('Ownership check error', { userId, error: error.message });
+    return res.status(500).json({ error: 'Authorization failed' });
+  }
+}
+
+/**
+ * Optional auth middleware - sets apiKeyId if token present, continues if not.
+ * Used for endpoints that can work with or without authentication.
  */
 export async function optionalAuth(req, res, next) {
   const bearerToken = req.headers.authorization?.replace('Bearer ', '');
-  const legacyApiKey = req.query.apiKey || req.body?.apiKey;
 
   if (bearerToken) {
     const decoded = verifyToken(bearerToken);
-    if (decoded) {
-      try {
-        req.userId = decoded.userId;
-        req.apiKey = await getCachedApiKey(decoded.userId);
-      } catch (error) {
-        log.debug('Optional auth failed', { error: error.message });
-      }
+    if (decoded?.apiKeyId) {
+      req.apiKeyId = decoded.apiKeyId;
     }
-  } else if (legacyApiKey) {
-    req.apiKey = legacyApiKey;
   }
 
   next();

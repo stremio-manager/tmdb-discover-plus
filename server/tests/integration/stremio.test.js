@@ -17,6 +17,7 @@ import {
   skipTest,
   get,
   post,
+  put,
   assert,
   assertOk,
   assertArray,
@@ -24,39 +25,66 @@ import {
   assertString,
   getSharedData,
   setSharedData,
-  createTestConfig,
   createTestCatalog,
+  loginAndGetToken,
+  getAuthHeaders,
 } from '../helpers/utils.js';
-import { CONFIG } from '../helpers/config.js';
 
 const SUITE = 'Stremio Protocol';
 
 export async function run() {
-  // First, ensure we have a userId from setup tests
-  let userId = getSharedData('userId');
+  // Ensure we're authenticated
+  await loginAndGetToken();
 
-  // If no userId from previous tests, create one
-  if (!userId) {
-    const createRes = await post(
-      '/api/config',
-      createTestConfig({
+  // Get userId from setup tests or create a config with catalog
+  let userId = getSharedData('testConfigUserId') || getSharedData('userId');
+
+  // Ensure we have a config with at least one catalog for testing
+  if (userId) {
+    // Check if this config has catalogs
+    const checkRes = await get(`/${userId}/manifest.json`);
+    if (!checkRes.ok || !checkRes.data.catalogs || checkRes.data.catalogs.length === 0) {
+      // Save a catalog to this config
+      const updateRes = await put(`/api/config/${userId}`, {
         catalogs: [
           createTestCatalog({
             id: 'stremio-test',
             name: 'Stremio Test Catalog',
             type: 'movie',
             filters: {
-              genres: ['28'], // Action
+              genres: ['28'],
               sortBy: 'popularity.desc',
             },
           }),
         ],
-      })
-    );
+      }, { headers: getAuthHeaders() });
+
+      if (!updateRes.ok) {
+        // Create a new config instead
+        userId = null;
+      }
+    }
+  }
+
+  // If we still don't have a userId with catalogs, create one
+  if (!userId) {
+    const createRes = await post('/api/config', {
+      catalogs: [
+        createTestCatalog({
+          id: 'stremio-test',
+          name: 'Stremio Test Catalog',
+          type: 'movie',
+          filters: {
+            genres: ['28'],
+            sortBy: 'popularity.desc',
+          },
+        }),
+      ],
+    }, { headers: getAuthHeaders() });
 
     if (createRes.ok) {
       userId = createRes.data.userId;
-      setSharedData('userId', userId);
+      setSharedData('stremioUserId', userId);
     } else {
       skipTest(SUITE, 'All tests', 'Could not create test config');
       return;

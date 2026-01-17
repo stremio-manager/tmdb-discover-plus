@@ -32,8 +32,8 @@ function App() {
     configsLoading,
   } = state;
 
-  // Show loading while fetching existing config
-  if (pageLoading) {
+  // Show loading until auth check completes and page is ready
+  if (pageLoading || !config.authChecked) {
     return (
       <div className="app">
         <Header />
@@ -46,8 +46,8 @@ function App() {
     );
   }
 
-  // Show API key setup / login
-  if (isSetup || (!config.isAuthenticated && config.authChecked)) {
+  // Show API key setup / login when isSetup is true
+  if (isSetup) {
     return (
       <div className="app">
         <Header />
@@ -56,7 +56,6 @@ function App() {
             state.setWantsToChangeKey(false);
             actions.handleLogin(userId, configs);
           }}
-          skipAutoRedirect={state.wantsToChangeKey}
           isSessionExpired={state.isSessionExpired}
           returnUserId={config.userId}
         />

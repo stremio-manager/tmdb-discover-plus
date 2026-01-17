@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Key, Loader, ArrowRight, ExternalLink, Eye, EyeOff } from 'lucide-react';
 import { api } from '../services/api';
 
 export function ApiKeySetup({
   onLogin,
-  skipAutoRedirect = false,
   isSessionExpired = false,
   returnUserId = null,
 }) {
@@ -14,19 +13,8 @@ export function ApiKeySetup({
   const [error, setError] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
 
-  // Check for session and handle auto-login
-  useEffect(() => {
-    if (skipAutoRedirect) return;
-
-    const checkSession = async () => {
-      const result = await api.verifySession();
-      if (result.valid && onLogin) {
-        onLogin(result.userId);
-      }
-    };
-
-    checkSession();
-  }, [skipAutoRedirect, onLogin]);
+  // NOTE: Session check removed - useConfig already handles auth verification
+  // This component now only handles manual login form submission
 
   const handleSubmit = async (e) => {
     e.preventDefault();

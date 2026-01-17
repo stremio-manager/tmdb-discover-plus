@@ -74,7 +74,14 @@ const userConfigSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  // HMAC-SHA256 hash of the TMDB API key for fast lookups
+  apiKeyId: {
+    type: String,
+    required: false,
+    index: true,
+  },
   // User's TMDB API key (legacy: unencrypted, for backward compatibility)
+  // NOTE: Deprecated - use tmdbApiKeyEncrypted instead
   tmdbApiKey: {
     type: String,
     required: false,

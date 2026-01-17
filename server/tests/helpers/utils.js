@@ -56,6 +56,39 @@ export function getSharedData(key) {
   return state.sharedData[key];
 }
 
+/**
+ * Login and store the auth token for subsequent requests.
+ * @returns {Promise<string>} The auth token
+ */
+export async function loginAndGetToken() {
+  const existingToken = getSharedData('authToken');
+  if (existingToken) return existingToken;
+
+  const res = await apiRequest('/api/auth/login', {
+    method: 'POST',
+    body: { apiKey: CONFIG.tmdbApiKey },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Login failed: ${res.data?.error || res.status}`);
+  }
+
+  const token = res.data.token;
+  setSharedData('authToken', token);
+  if (res.data.userId) {
+    setSharedData('userId', res.data.userId);
+  }
+  return token;
+}
+
+/**
+ * Get authorization headers with the stored token.
+ */
+export function getAuthHeaders() {
+  const token = getSharedData('authToken');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 // ============================================
 // Logging
 // ============================================

@@ -179,14 +179,19 @@ export async function saveUserConfig(config) {
         updatedAt: new Date(),
       };
 
+      // Compute and store apiKeyId for fast lookups
+      const apiKeyForHash = rawApiKey || (encryptedApiKey ? decrypt(encryptedApiKey) : null);
+      if (apiKeyForHash) {
+        const { computeApiKeyId } = await import('../utils/authMiddleware.js');
+        updateData.apiKeyId = computeApiKeyId(apiKeyForHash);
+      }
+
       // Set encrypted key and optionally keep legacy for backward compat
       if (encryptedApiKey) {
         updateData.tmdbApiKeyEncrypted = encryptedApiKey;
       }
-      // Keep legacy key during transition (will be removed in future)
-      if (rawApiKey && !encryptedApiKey) {
-        updateData.tmdbApiKey = rawApiKey;
-      }
+      // Remove legacy key when we have encrypted (no longer needed)
+      // Legacy will only be used if encryption fails
 
       // Use findOneAndUpdate to properly handle nested array updates
       const result = await UserConfig.findOneAndUpdate(
@@ -229,33 +234,30 @@ export async function saveUserConfig(config) {
 }
 
 /**
- * Get all user configs by TMDB API key
- * Returns an array of configs that share the same API key
+ * Get all user configs by TMDB API key or apiKeyId (HMAC hash).
+ * Uses indexed apiKeyId field for fast O(1) lookups.
+ * @param {string|null} apiKey - The raw API key (optional)
+ * @param {string|null} apiKeyId - The HMAC hash of the API key (optional)
+ * @returns {Promise<Array>} - Array of configs
  */
-export async function getConfigsByApiKey(apiKey) {
-  if (!apiKey) return [];
+export async function getConfigsByApiKey(apiKey, apiKeyId = null) {
+  // Import computeApiKeyId dynamically to avoid circular dependency
+  const { computeApiKeyId } = await import('../utils/authMiddleware.js');
 
-  log.info('Getting configs by apiKey', { dbConnected: isConnected() });
+  log.info('Getting configs by apiKey/apiKeyId', { hasApiKey: !!apiKey, hasApiKeyId: !!apiKeyId, dbConnected: isConnected() });
+
+  if (!apiKey && !apiKeyId) return [];
+
+  // Compute apiKeyId from raw key if provided
+  const targetApiKeyId = apiKeyId || (apiKey ? computeApiKeyId(apiKey) : null);
+  
+  if (!targetApiKeyId) return [];
 
   if (isConnected()) {
     try {
-      // Search both legacy and potentially match decrypted keys
-      // First try legacy field for backward compat
-      let configs = await UserConfig.find({ tmdbApiKey: apiKey }).lean();
-
-      // If not found with legacy, search all and check encrypted
-      if (configs.length === 0) {
-        const allConfigs = await UserConfig.find({
-          $or: [{ tmdbApiKey: { $exists: true } }, { tmdbApiKeyEncrypted: { $exists: true } }],
-        }).lean();
-
-        configs = allConfigs.filter((config) => {
-          const storedKey = getApiKeyFromConfig(config);
-          return storedKey === apiKey;
-        });
-      }
-
-      log.debug('Found configs in MongoDB', { count: configs.length });
+      // Fast indexed query on apiKeyId
+      const configs = await UserConfig.find({ apiKeyId: targetApiKeyId }).lean();
+      log.debug('Found configs by apiKeyId index', { count: configs.length });
       return configs;
     } catch (err) {
       log.error('MongoDB error in getConfigsByApiKey', { error: err.message });
@@ -263,11 +265,10 @@ export async function getConfigsByApiKey(apiKey) {
     }
   }
 
-  // Memory store fallback: filter by apiKey (check both fields)
+  // Memory store fallback (for development without MongoDB)
   const results = [];
   for (const [, config] of memoryStore.entries()) {
-    const storedKey = getApiKeyFromConfig(config);
-    if (storedKey === apiKey) {
+    if (config.apiKeyId === targetApiKeyId) {
       results.push(config);
     }
   }

@@ -23,8 +23,13 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
 import http from 'http';
+import { config as dotenvConfig } from 'dotenv';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Load .env from server directory
+dotenvConfig({ path: path.join(__dirname, '..', '.env') });
+
 const SERVER_PATH = path.join(__dirname, '..', 'src', 'index.js');
 const INTEGRATION_DIR = path.join(__dirname, 'integration');
 

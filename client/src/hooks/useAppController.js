@@ -1,30 +1,31 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useConfig } from './useConfig';
 import { useTMDB } from './useTMDB';
 import { api } from '../services/api';
 
 export function useAppController() {
-  // Parsing userId from URL
-  const searchParams = new URLSearchParams(window.location.search);
-  const qsUserId = searchParams.get('userId');
-  let urlUserId = null;
-  if (qsUserId) {
-    urlUserId = qsUserId;
-  } else {
+  // Get userId from URL (read once per render)
+  const getUrlUserId = () => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const qsUserId = searchParams.get('userId');
+    if (qsUserId) return qsUserId;
+    
     const pathParts = window.location.pathname.split('/').filter(Boolean);
     const last = pathParts[pathParts.length - 1];
-    urlUserId = last && last !== 'configure' ? last : null;
-  }
+    return last && last !== 'configure' ? last : null;
+  };
+
+  const [urlUserId, setUrlUserId] = useState(getUrlUserId);
 
   const config = useConfig(urlUserId);
   const tmdb = useTMDB(config.apiKey);
 
-  // UI State - determine setup based on auth state
+  // UI State - start with loading true, let auth effect decide what to show
   const [isSetup, setIsSetup] = useState(false);
   const [isSessionExpired, setIsSessionExpired] = useState(false);
-
   const [wantsToChangeKey, setWantsToChangeKey] = useState(false);
-  const [pageLoading, setPageLoading] = useState(!!urlUserId);
+  // Start with pageLoading true - we're always loading until auth is checked
+  const [pageLoading, setPageLoading] = useState(true);
   const [activeCatalog, setActiveCatalog] = useState(null);
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [showNewCatalogModal, setShowNewCatalogModal] = useState(false);
@@ -34,15 +35,17 @@ export function useAppController() {
   const [userConfigs, setUserConfigs] = useState([]);
   const [configsLoading, setConfigsLoading] = useState(false);
 
-  // Toast helpers - with deduplication
+  // Guards to prevent duplicate operations
+  const loginHandledRef = useRef(false);
+  const configsLoadedRef = useRef(false);
+  const loadingLockRef = useRef(false);
+
+  // Toast helpers
   const addToast = useCallback((message, type = 'success') => {
     setToasts((prev) => {
-      // Prevent duplicate toasts with same message within last 2 seconds
       const recentDupe = prev.find((t) => t.message === message && Date.now() - t.id < 2000);
       if (recentDupe) return prev;
-
-      const id = Date.now();
-      return [...prev, { id, message, type }];
+      return [...prev, { id: Date.now(), message, type }];
     });
   }, []);
 
@@ -50,8 +53,11 @@ export function useAppController() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  // Load user configs (history) - works with session token or apiKey
+  // Load user configs - stable function with ref-based lock
   const loadUserConfigs = useCallback(async () => {
+    if (loadingLockRef.current) return [];
+    
+    loadingLockRef.current = true;
     setConfigsLoading(true);
     try {
       const configs = await api.getConfigsByApiKey();
@@ -63,77 +69,75 @@ export function useAppController() {
       return [];
     } finally {
       setConfigsLoading(false);
+      loadingLockRef.current = false;
     }
-  }, []);
+  }, []); // Empty deps - uses ref for stability
 
-  // Effect: Initial auth check (replaces old localStorage check)
+  // SINGLE consolidated auth effect
   useEffect(() => {
+    // Wait for auth check to complete
     if (!config.authChecked) return;
 
-    if (!config.isAuthenticated && !urlUserId) {
-      // Not authenticated and no userId in URL - show setup
-      setIsSetup(true);
-      setPageLoading(false);
-    } else if (!config.isAuthenticated && urlUserId) {
-      // Not authenticated but have userId - session might be expired
-      setIsSessionExpired(true);
-      setIsSetup(true);
-      setPageLoading(false);
-    } else if (config.isAuthenticated && !urlUserId) {
-      // Authenticated but no userId - redirect to user's config
-      if (config.userId) {
+    const currentUrlUserId = getUrlUserId();
+
+    if (config.isAuthenticated) {
+      // User is authenticated
+      setIsSetup(false);
+      setIsSessionExpired(false);
+      
+      // If no userId in URL, redirect to user's config
+      if (!currentUrlUserId && config.userId) {
         window.history.replaceState({}, '', `/?userId=${config.userId}`);
+        setUrlUserId(config.userId);
       }
+      
+      // Load user configs once
+      if (!configsLoadedRef.current) {
+        configsLoadedRef.current = true;
+        loadUserConfigs();
+      }
+      
+      setPageLoading(false);
+    } else {
+      // Not authenticated
+      if (currentUrlUserId) {
+        // Has userId in URL but not authenticated - session expired
+        setIsSessionExpired(true);
+      }
+      setIsSetup(true);
+      setPageLoading(false);
     }
-  }, [config.authChecked, config.isAuthenticated, config.userId, urlUserId]);
+  }, [config.authChecked, config.isAuthenticated, config.userId, loadUserConfigs]);
 
   // Effect: Load config from server if userId in URL
   useEffect(() => {
-    if (urlUserId) {
-      setPageLoading(true);
-      config
-        .loadConfig(urlUserId)
-        .then((data) => {
-          if (data.catalogs?.length > 0) {
-            setActiveCatalog(data.catalogs[0]);
-          }
-          if (!config.apiKey) {
-            setIsSetup(true);
-          }
-          setPageLoading(false);
-        })
-        .catch((err) => {
-          console.error('[App] Config load error:', err);
-          if (!config.apiKey) setIsSetup(true);
-          setPageLoading(false);
-        });
-    }
-  }, [urlUserId]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!urlUserId || !config.authChecked) return;
+    
+    // Don't load if we're showing setup
+    if (isSetup) return;
 
-  // Effect: Re-fetch if API key changes (to resolve placeholders)
-  useEffect(() => {
-    if (!urlUserId) return;
-    if (config.apiKey) {
-      setPageLoading(true);
-      config
-        .loadConfig(urlUserId)
-        .then((data) => {
-          if (data.catalogs?.length > 0) setActiveCatalog(data.catalogs[0]);
-        })
-        .catch((err) => console.error('[App] Re-fetch error:', err))
-        .finally(() => setPageLoading(false));
-    }
-  }, [config.apiKey, urlUserId]); // eslint-disable-line react-hooks/exhaustive-deps
+    setPageLoading(true);
+    config
+      .loadConfig(urlUserId)
+      .then((data) => {
+        if (data.catalogs?.length > 0) {
+          setActiveCatalog(data.catalogs[0]);
+        }
+      })
+      .catch((err) => {
+        console.error('[App] Config load error:', err);
+      })
+      .finally(() => {
+        setPageLoading(false);
+      });
+  }, [urlUserId, config.authChecked, isSetup]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reload history when authenticated
-  useEffect(() => {
-    if (config.isAuthenticated && config.userId && !isSetup) {
-      loadUserConfigs();
-    }
-  }, [config.isAuthenticated, config.userId, isSetup, loadUserConfigs]);
-
-  // Handle successful login
+  // Handle successful login from ApiKeySetup form
   const handleLogin = async (userId, configs = []) => {
+    // Prevent multiple login handling
+    if (loginHandledRef.current) return;
+    loginHandledRef.current = true;
+
     setIsSetup(false);
     setIsSessionExpired(false);
     setPageLoading(true);
@@ -141,31 +145,36 @@ export function useAppController() {
     try {
       // If configs were returned from login, use them immediately
       if (configs && configs.length > 0) {
-        // Sort by updatedAt descending (most recent first)
         configs.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
         setUserConfigs(configs);
+        configsLoadedRef.current = true; // Mark as loaded
       }
 
       const data = await config.loadConfig(userId);
       if (data.catalogs?.length > 0) {
         setActiveCatalog(data.catalogs[0]);
       }
+      
+      // Update URL
       window.history.replaceState({}, '', `/?userId=${userId}`);
+      setUrlUserId(userId);
+      
       addToast('Logged in successfully');
 
-      // If no configs were passed, fall back to loading them
+      // If no configs were passed, load them
       if (!configs || configs.length === 0) {
+        configsLoadedRef.current = true;
         loadUserConfigs();
       }
     } catch (err) {
       console.error('Error loading config after login:', err);
       addToast('Failed to load configuration', 'error');
+      loginHandledRef.current = false; // Allow retry
     } finally {
       setPageLoading(false);
     }
   };
 
-  // Legacy handler kept for compatibility
   const handleValidApiKey = handleLogin;
 
   const handleSave = async () => {
@@ -192,14 +201,15 @@ export function useAppController() {
       if (result.configName !== undefined) config.setConfigName(result.configName);
       if (result.catalogs) config.setCatalogs(result.catalogs);
       if (result.preferences) config.setPreferences(result.preferences);
-
-      // Mark as saved to clear dirty state
       config.markAsSaved();
 
       if (!urlUserId) {
         window.history.pushState({}, '', `/?userId=${result.userId}`);
+        setUrlUserId(result.userId);
       }
 
+      // Reload configs list
+      loadingLockRef.current = false; // Reset lock
       await loadUserConfigs();
 
       setInstallData({
@@ -242,7 +252,6 @@ export function useAppController() {
     }
   };
 
-  // Creation logic for new catalog
   const handleAddCatalog = (catalogData) => {
     const newCatalog = { ...catalogData, _id: crypto.randomUUID() };
     config.setCatalogs((prev) => [...prev, newCatalog]);
@@ -277,7 +286,7 @@ export function useAppController() {
   return {
     state: {
       isSetup,
-      setIsSetup, // exposed for manual trigger
+      setIsSetup,
       wantsToChangeKey,
       setWantsToChangeKey,
       pageLoading,
