@@ -5,6 +5,7 @@ import * as tmdb from './tmdb.js';
 import { createLogger } from '../utils/logger.js';
 import { sanitizeString, isValidUserId, isValidApiKeyFormat } from '../utils/validation.js';
 import { encrypt, decrypt, isEncrypted } from '../utils/encryption.js';
+import { computeApiKeyId } from '../utils/security.js';
 
 const log = createLogger('configService');
 
@@ -182,7 +183,6 @@ export async function saveUserConfig(config) {
       // Compute and store apiKeyId for fast lookups
       const apiKeyForHash = rawApiKey || (encryptedApiKey ? decrypt(encryptedApiKey) : null);
       if (apiKeyForHash) {
-        const { computeApiKeyId } = await import('../utils/authMiddleware.js');
         updateData.apiKeyId = computeApiKeyId(apiKeyForHash);
       }
 
@@ -241,9 +241,6 @@ export async function saveUserConfig(config) {
  * @returns {Promise<Array>} - Array of configs
  */
 export async function getConfigsByApiKey(apiKey, apiKeyId = null) {
-  // Import computeApiKeyId dynamically to avoid circular dependency
-  const { computeApiKeyId } = await import('../utils/authMiddleware.js');
-
   log.info('Getting configs by apiKey/apiKeyId', { hasApiKey: !!apiKey, hasApiKeyId: !!apiKeyId, dbConnected: isConnected() });
 
   if (!apiKey && !apiKeyId) return [];
