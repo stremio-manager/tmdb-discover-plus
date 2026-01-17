@@ -482,7 +482,7 @@ router.get('/config/:userId', requireAuth, requireConfigOwnership, async (req, r
       configName: config.configName || '',
       catalogs: config.catalogs || [],
       preferences: config.preferences || {},
-      hasApiKey: !!(config.tmdbApiKey || config.tmdbApiKeyEncrypted),
+      hasApiKey: !!config.tmdbApiKeyEncrypted,
     };
 
     log.debug('Returning config', { userId: config.userId, catalogCount: response.catalogs.length });

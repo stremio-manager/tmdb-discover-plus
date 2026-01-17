@@ -26,7 +26,7 @@ const catalogSchema = new mongoose.Schema(
       originCountry: String,
       includeAdult: { type: Boolean, default: false },
       imdbOnly: { type: Boolean, default: true },
-      voteCountMin: { type: Number, default: 100 },
+      voteCountMin: { type: Number, default: 0 },
       runtimeMin: Number,
       runtimeMax: Number,
       releaseDateFrom: String,
@@ -80,12 +80,7 @@ const userConfigSchema = new mongoose.Schema({
     required: false,
     index: true,
   },
-  // User's TMDB API key (legacy: unencrypted, for backward compatibility)
-  // NOTE: Deprecated - use tmdbApiKeyEncrypted instead
-  tmdbApiKey: {
-    type: String,
-    required: false,
-  },
+
   // User's TMDB API key (encrypted with AES-256-GCM)
   tmdbApiKeyEncrypted: {
     type: String,

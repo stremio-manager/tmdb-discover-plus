@@ -31,29 +31,17 @@ export function GenreSelector({
 
   if (loading) {
     return (
-      <div
-        style={{
-          padding: '12px',
-          background: 'var(--bg-tertiary)',
-          borderRadius: 'var(--radius-md)',
-        }}
-      >
-        <p style={{ margin: 0, color: 'var(--text-muted)' }}>Loading genres...</p>
+      <div className="loading-box">
+        <p>Loading genres...</p>
       </div>
     );
   }
 
   if (!genres || genres.length === 0) {
     return (
-      <div
-        style={{
-          padding: '12px',
-          background: 'var(--bg-tertiary)',
-          borderRadius: 'var(--radius-md)',
-        }}
-      >
-        <p style={{ margin: 0, color: 'var(--text-muted)' }}>Genres not available.</p>
-        <div style={{ marginTop: 8 }}>
+      <div className="error-box">
+        <p>Genres not available.</p>
+        <div className="mt-2">
           <button className="btn btn-secondary btn-sm" onClick={onRefresh}>
             Retry loading genres
           </button>

@@ -34,7 +34,7 @@ export function StreamFilters({
     <>
       {/* TV Networks - only show for TV content */}
       {type === 'series' && tvNetworks.length > 0 && (
-        <div className="filter-group" style={{ marginBottom: '16px' }}>
+        <div className="filter-group mb-4">
           <LabelWithTooltip
             label="Original Networks"
             tooltip="Filter by the TV network that originally produced/aired the show."
@@ -88,7 +88,7 @@ export function StreamFilters({
         </div>
       </div>
 
-      <div style={{ marginTop: '16px' }}>
+      <div className="mt-4">
         <LabelWithTooltip
           label="Streaming Services"
           tooltip="Filter by specific streaming platforms."
@@ -162,15 +162,7 @@ export function StreamFilters({
             </div>
           </>
         ) : (
-          <div
-            className="filter-hint"
-            style={{
-              marginTop: '8px',
-              padding: '12px',
-              background: 'var(--bg-tertiary)',
-              borderRadius: 'var(--radius-md)',
-            }}
-          >
+          <div className="info-box mt-2">
             Choose a region above to see streaming services available in that area
           </div>
         )}

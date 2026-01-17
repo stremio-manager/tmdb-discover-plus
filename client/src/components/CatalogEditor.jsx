@@ -30,6 +30,11 @@ import { StreamFilters } from './catalog/StreamFilters';
 import { PeopleFilters } from './catalog/PeopleFilters';
 import { CatalogPreview } from './catalog/CatalogPreview';
 
+// Hooks
+import { useResolvedFilters } from '../hooks/useResolvedFilters';
+import { useCatalogSync } from '../hooks/useCatalogSync';
+import { useWatchProviders } from '../hooks/useWatchProviders';
+
 const DEFAULT_CATALOG = {
   name: '',
   type: 'movie',
@@ -38,7 +43,7 @@ const DEFAULT_CATALOG = {
     excludeGenres: [],
     sortBy: 'popularity.desc',
     imdbOnly: false,
-    voteCountMin: 100,
+    voteCountMin: 0,
   },
   enabled: true,
 };
@@ -141,7 +146,6 @@ export function CatalogEditor({
   const [previewData, setPreviewData] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState(null);
-  const [watchProviders, setWatchProviders] = useState([]);
   const [selectedDatePreset, setSelectedDatePreset] = useState(null);
   const [tvNetworkOptions, setTVNetworkOptions] = useState(tvNetworks);
   const [expandedSections, setExpandedSections] = useState({
@@ -154,16 +158,63 @@ export function CatalogEditor({
     options: false,
   });
 
-  // Selected items for search inputs
-  const [selectedPeople, setSelectedPeople] = useState([]);
-  const [selectedCompanies, setSelectedCompanies] = useState([]);
-  const [selectedKeywords, setSelectedKeywords] = useState([]);
-  // Exclude filters
-  const [excludeKeywords, setExcludeKeywords] = useState([]);
-  const [excludeCompanies, setExcludeCompanies] = useState([]);
-  const initialSyncRef = useRef(true);
-  const syncTimeoutRef = useRef(null);
   const prevCatalogIdRef = useRef(null);
+
+  // ----------------------------------------------------------------
+  // 1. Resolve Filter IDs to Objects (People, Companies, Keywords)
+  // ----------------------------------------------------------------
+  const {
+    selectedPeople, setSelectedPeople,
+    selectedCompanies, setSelectedCompanies,
+    selectedKeywords, setSelectedKeywords,
+    excludeKeywords, setExcludeKeywords,
+    excludeCompanies, setExcludeCompanies,
+  } = useResolvedFilters({
+    catalog: catalog,
+    getPersonById, searchPerson,
+    getCompanyById, searchCompany,
+    getKeywordById, searchKeyword,
+  });
+
+  // ----------------------------------------------------------------
+  // 2. Watch Providers (Streaming)
+  // ----------------------------------------------------------------
+  const { watchProviders } = useWatchProviders({
+      type: localCatalog?.type,
+      region: localCatalog?.filters?.watchRegion,
+      getWatchProviders
+  });
+
+  // ----------------------------------------------------------------
+  // 3. Catalog Sync (Debounced Update to Parent)
+  // ----------------------------------------------------------------
+  // We need to merge the standalone state (selectedPeople etc) back into the catalog filters
+  // before syncing up.
+  const mergedLocalCatalog = {
+      ...localCatalog,
+      filters: {
+          ...localCatalog.filters,
+          withPeople: selectedPeople.map((p) => p.id).join(',') || undefined,
+          withCompanies: selectedCompanies.map((c) => c.id).join(',') || undefined,
+          withKeywords: selectedKeywords.map((k) => k.id).join(',') || undefined,
+          excludeKeywords: excludeKeywords.map((k) => k.id).join(',') || undefined,
+          excludeCompanies: excludeCompanies.map((c) => c.id).join(',') || undefined,
+      }
+  };
+
+  useCatalogSync({
+      localCatalog: mergedLocalCatalog,
+      catalog,
+      onUpdate,
+      dependencies: [
+        selectedPeople, 
+        selectedCompanies, 
+        selectedKeywords, 
+        excludeKeywords, 
+        excludeCompanies
+      ]
+  });
+
 
   // Keep a growing union of known networks so previously selected IDs always have labels.
   useEffect(() => {
@@ -259,176 +310,6 @@ export function CatalogEditor({
         setSelectedDatePreset(null);
       }
 
-      // Prefer server-resolved placeholder arrays when available
-      const peopleResolved = catalog.filters?.withPeopleResolved || null;
-      const companiesResolved = catalog.filters?.withCompaniesResolved || null;
-      const keywordsResolved = catalog.filters?.withKeywordsResolved || null;
-
-      const toPlaceholdersFromCsv = (csv) => {
-        if (!csv) return [];
-        return String(csv)
-          .split(',')
-          .filter(Boolean)
-          .map((id) => ({ id, name: id }));
-      };
-
-      if (Array.isArray(peopleResolved) && peopleResolved.length > 0) {
-        setSelectedPeople(peopleResolved.map((p) => ({ id: String(p.value), name: p.label })));
-      } else {
-        const csv = catalog.filters?.withPeople || '';
-        const initial = toPlaceholdersFromCsv(csv);
-        (async () => {
-          if (
-            initial.length > 0 &&
-            (typeof getPersonById === 'function' || typeof searchPerson === 'function')
-          ) {
-            const resolved = await Promise.all(
-              initial.map(async (item) => {
-                if (item.name && !/^\d+$/.test(item.name)) return item;
-                try {
-                  if (typeof getPersonById === 'function') {
-                    const resp = await getPersonById(item.id);
-                    if (resp && resp.name) return { id: item.id, name: resp.name };
-                  }
-                  if (typeof searchPerson === 'function') {
-                    const sres = await searchPerson(item.id);
-                    if (Array.isArray(sres) && sres.length > 0)
-                      return { id: item.id, name: sres[0].name || item.id };
-                  }
-                } catch {
-                  // ignore resolution errors; keep placeholder
-                }
-                return item;
-              })
-            );
-            setSelectedPeople(resolved);
-          } else {
-            setSelectedPeople(initial);
-          }
-        })();
-      }
-
-      if (Array.isArray(companiesResolved) && companiesResolved.length > 0) {
-        setSelectedCompanies(
-          companiesResolved.map((c) => ({ id: String(c.value), name: c.label }))
-        );
-      } else {
-        const csv = catalog.filters?.withCompanies || '';
-        const initial = toPlaceholdersFromCsv(csv);
-        // Resolve numeric-only ids into names when possible
-        (async () => {
-          if (
-            initial.length > 0 &&
-            (typeof getCompanyById === 'function' || typeof searchCompany === 'function')
-          ) {
-            const resolved = await Promise.all(
-              initial.map(async (item) => {
-                if (item.name && !/^\d+$/.test(item.name)) return item;
-                try {
-                  if (typeof getCompanyById === 'function') {
-                    const resp = await getCompanyById(item.id);
-                    if (resp && resp.name) return { id: item.id, name: resp.name };
-                  }
-                  if (typeof searchCompany === 'function') {
-                    const sres = await searchCompany(item.id);
-                    if (Array.isArray(sres) && sres.length > 0)
-                      return { id: item.id, name: sres[0].name || sres[0].title || item.id };
-                  }
-                } catch {
-                  // ignore resolution errors; keep placeholder
-                }
-                return item;
-              })
-            );
-            setSelectedCompanies(resolved);
-          } else {
-            setSelectedCompanies(initial);
-          }
-        })();
-      }
-
-      if (Array.isArray(keywordsResolved) && keywordsResolved.length > 0) {
-        setSelectedKeywords(keywordsResolved.map((k) => ({ id: String(k.value), name: k.label })));
-      } else {
-        const csv = catalog.filters?.withKeywords || '';
-        const initial = toPlaceholdersFromCsv(csv);
-        (async () => {
-          if (
-            initial.length > 0 &&
-            (typeof getKeywordById === 'function' || typeof searchKeyword === 'function')
-          ) {
-            const resolved = await Promise.all(
-              initial.map(async (item) => {
-                if (item.name && !/^\d+$/.test(item.name)) return item;
-                try {
-                  if (typeof getKeywordById === 'function') {
-                    const resp = await getKeywordById(item.id);
-                    if (resp && resp.name) return { id: item.id, name: resp.name };
-                  }
-                  if (typeof searchKeyword === 'function') {
-                    const sres = await searchKeyword(item.id);
-                    if (Array.isArray(sres) && sres.length > 0)
-                      return { id: item.id, name: sres[0].name || item.id };
-                  }
-                } catch {
-                  // ignore resolution errors; keep placeholder
-                }
-                return item;
-              })
-            );
-            setSelectedKeywords(resolved);
-          } else {
-            setSelectedKeywords(initial);
-          }
-        })();
-      }
-
-      // Initialize exclude keywords
-      const excludeKwCsv = catalog.filters?.excludeKeywords || '';
-      const excludeKwInitial = toPlaceholdersFromCsv(excludeKwCsv);
-      if (excludeKwInitial.length > 0 && typeof getKeywordById === 'function') {
-        (async () => {
-          const resolved = await Promise.all(
-            excludeKwInitial.map(async (item) => {
-              if (item.name && !/^\d+$/.test(item.name)) return item;
-              try {
-                const resp = await getKeywordById(item.id);
-                if (resp && resp.name) return { id: item.id, name: resp.name };
-              } catch {
-                /* ignore */
-              }
-              return item;
-            })
-          );
-          setExcludeKeywords(resolved);
-        })();
-      } else {
-        setExcludeKeywords(excludeKwInitial);
-      }
-
-      // Initialize exclude companies
-      const excludeCompCsv = catalog.filters?.excludeCompanies || '';
-      const excludeCompInitial = toPlaceholdersFromCsv(excludeCompCsv);
-      if (excludeCompInitial.length > 0 && typeof getCompanyById === 'function') {
-        (async () => {
-          const resolved = await Promise.all(
-            excludeCompInitial.map(async (item) => {
-              if (item.name && !/^\d+$/.test(item.name)) return item;
-              try {
-                const resp = await getCompanyById(item.id);
-                if (resp && resp.name) return { id: item.id, name: resp.name };
-              } catch {
-                /* ignore */
-              }
-              return item;
-            })
-          );
-          setExcludeCompanies(resolved);
-        })();
-      } else {
-        setExcludeCompanies(excludeCompInitial);
-      }
-
       // Only clear preview when switching to a different catalog (by id).
       // Parent may re-create the same catalog object (new reference) which shouldn't clear preview.
       const prevId = prevCatalogIdRef.current;
@@ -439,213 +320,14 @@ export function CatalogEditor({
       prevCatalogIdRef.current = newId;
     } else {
       setLocalCatalog(DEFAULT_CATALOG);
-      setSelectedPeople([]);
-      setSelectedCompanies([]);
-      setSelectedKeywords([]);
-      setExcludeKeywords([]);
-      setExcludeCompanies([]);
+      setSelectedDatePreset(null);
       setPreviewData(null);
       prevCatalogIdRef.current = null;
     }
   }, [
     catalog,
-    getPersonById,
-    getCompanyById,
-    getKeywordById,
-    searchPerson,
-    searchCompany,
-    searchKeyword,
   ]);
 
-  // Keep local changes synced back to parent so switching catalogs preserves state
-  useEffect(() => {
-    // Don't sync immediately after receiving a new `catalog` prop
-    if (!catalog || !catalog._id) return; // nothing to sync if no id
-
-    if (initialSyncRef.current) {
-      // Skip the first effect run which comes from prop sync
-      initialSyncRef.current = false;
-      return;
-    }
-
-    // Debounce updates to avoid rapid parent updates while typing
-    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-    syncTimeoutRef.current = setTimeout(() => {
-      if (typeof onUpdate === 'function') {
-        // Include current selected people/companies/keywords as comma lists
-        const merged = {
-          ...localCatalog,
-          filters: {
-            ...localCatalog.filters,
-            withPeople: selectedPeople.map((p) => p.id).join(',') || undefined,
-            withCompanies: selectedCompanies.map((c) => c.id).join(',') || undefined,
-            withKeywords: selectedKeywords.map((k) => k.id).join(',') || undefined,
-            excludeKeywords: excludeKeywords.map((k) => k.id).join(',') || undefined,
-            excludeCompanies: excludeCompanies.map((c) => c.id).join(',') || undefined,
-          },
-        };
-        onUpdate(catalog._id, merged);
-      }
-    }, 250);
-
-    return () => {
-      if (syncTimeoutRef.current) {
-        clearTimeout(syncTimeoutRef.current);
-        syncTimeoutRef.current = null;
-      }
-    };
-  }, [
-    localCatalog,
-    selectedPeople,
-    selectedCompanies,
-    selectedKeywords,
-    excludeKeywords,
-    excludeCompanies,
-    catalog,
-    onUpdate,
-  ]);
-
-  // Load watch providers when region changes
-  useEffect(() => {
-    const loadProviders = async () => {
-      const region = localCatalog?.filters?.watchRegion;
-      if (region && getWatchProviders) {
-        try {
-          const providers = await getWatchProviders(localCatalog?.type || 'movie', region);
-          setWatchProviders(
-            providers.map((p) => ({
-              id: p.provider_id,
-              name: p.provider_name,
-              logo: p.logo_path ? `https://image.tmdb.org/t/p/w92${p.logo_path}` : null,
-            }))
-          );
-        } catch (err) {
-          console.error('Failed to load providers:', err);
-        }
-      }
-    };
-    loadProviders();
-  }, [localCatalog?.filters?.watchRegion, localCatalog?.type, getWatchProviders]);
-
-  // If user selects a numeric id (e.g., just added an actor by id) resolve it immediately.
-  // This handles the case where CatalogEditor mounted before resolvers were available
-  // and the user adds a person/company/keyword without saving the catalog first.
-  useEffect(() => {
-    let cancelled = false;
-    const hasNumeric = selectedPeople.some((p) => /^\d+$/.test(String(p.name)));
-    if (!hasNumeric) return;
-
-    (async () => {
-      try {
-        const resolved = await Promise.all(
-          selectedPeople.map(async (item) => {
-            if (item.name && !/^\d+$/.test(String(item.name))) return item;
-            try {
-              if (typeof getPersonById === 'function') {
-                const resp = await getPersonById(item.id);
-                if (resp && resp.name) return { id: item.id, name: resp.name };
-              }
-              if (typeof searchPerson === 'function') {
-                const sres = await searchPerson(item.id);
-                if (Array.isArray(sres) && sres.length > 0)
-                  return { id: item.id, name: sres[0].name || item.id };
-              }
-            } catch {
-              // ignore resolution errors; keep placeholder
-            }
-            return item;
-          })
-        );
-        if (!cancelled) {
-          setSelectedPeople(resolved);
-        }
-      } catch {
-        // ignore
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedPeople, getPersonById, searchPerson]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const hasNumeric = selectedCompanies.some((c) => /^\d+$/.test(String(c.name)));
-    if (!hasNumeric) return;
-
-    (async () => {
-      try {
-        const resolved = await Promise.all(
-          selectedCompanies.map(async (item) => {
-            if (item.name && !/^\d+$/.test(String(item.name))) return item;
-            try {
-              if (typeof getCompanyById === 'function') {
-                const resp = await getCompanyById(item.id);
-                if (resp && resp.name) return { id: item.id, name: resp.name };
-              }
-              if (typeof searchCompany === 'function') {
-                const sres = await searchCompany(item.id);
-                if (Array.isArray(sres) && sres.length > 0)
-                  return { id: item.id, name: sres[0].name || sres[0].title || item.id };
-              }
-            } catch {
-              // ignore resolution errors; keep placeholder
-            }
-            return item;
-          })
-        );
-        if (!cancelled) {
-          setSelectedCompanies(resolved);
-        }
-      } catch {
-        // ignore
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedCompanies, getCompanyById, searchCompany]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const hasNumeric = selectedKeywords.some((k) => /^\d+$/.test(String(k.name)));
-    if (!hasNumeric) return;
-
-    (async () => {
-      try {
-        const resolved = await Promise.all(
-          selectedKeywords.map(async (item) => {
-            if (item.name && !/^\d+$/.test(String(item.name))) return item;
-            try {
-              if (typeof getKeywordById === 'function') {
-                const resp = await getKeywordById(item.id);
-                if (resp && resp.name) return { id: item.id, name: resp.name };
-              }
-              if (typeof searchKeyword === 'function') {
-                const sres = await searchKeyword(item.id);
-                if (Array.isArray(sres) && sres.length > 0)
-                  return { id: item.id, name: sres[0].name || item.id };
-              }
-            } catch {
-              // ignore resolution errors; keep placeholder
-            }
-            return item;
-          })
-        );
-        if (!cancelled) {
-          setSelectedKeywords(resolved);
-        }
-      } catch {
-        // ignore
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedKeywords, getKeywordById, searchKeyword]);
 
   const toggleSection = (section) => {
     setExpandedSections((prev) => {
@@ -980,7 +662,7 @@ export function CatalogEditor({
       default:
         break;
     }
-  }, []);
+  }, [setSelectedKeywords, setSelectedPeople]);
 
   // Clear all filters
   const clearAllFilters = useCallback(() => {
@@ -997,7 +679,13 @@ export function CatalogEditor({
     setExcludeKeywords([]);
     setExcludeCompanies([]);
     setSelectedDatePreset(null);
-  }, []);
+  }, [
+    setExcludeCompanies,
+    setExcludeKeywords,
+    setSelectedCompanies,
+    setSelectedKeywords,
+    setSelectedPeople,
+  ]);
 
   // Apply a filter template
   const applyTemplate = useCallback((template) => {
@@ -1386,7 +1074,7 @@ export function CatalogEditor({
                         min={0}
                         max={10000}
                         step={1}
-                        value={localCatalog?.filters?.voteCountMin ?? 100}
+                        value={localCatalog?.filters?.voteCountMin ?? 0}
                         onChange={(v) => handleFiltersChange('voteCountMin', v)}
                         formatValue={(v) => v.toLocaleString()}
                         showInput

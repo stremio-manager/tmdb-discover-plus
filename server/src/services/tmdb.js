@@ -302,7 +302,7 @@ export async function discover(apiKey, options = {}) {
     displayLanguage,
     originCountry,
     includeAdult = false,
-    voteCountMin = 100,
+    voteCountMin = 0,
     page = 1,
     genreMatchMode = 'any', // 'any' (OR) or 'all' (AND)
     // Movie-specific

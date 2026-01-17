@@ -130,12 +130,44 @@ export function useAppController() {
         if (data.catalogs?.length > 0) {
           setActiveCatalog(data.catalogs[0]);
         }
-      })
-      .catch((err) => {
-        console.error('[App] Config load error:', err);
-      })
-      .finally(() => {
         setPageLoading(false);
+      })
+      .catch(async (err) => {
+        console.error('[App] Config load error, attempting fallback:', err);
+        
+        // 404 or 403 means the config in URL is invalid/gone/unauthorized
+        // We should fallback to the user's latest config or create a new one
+        try {
+          // Ensure we have the latest list
+          const configs = await loadUserConfigs();
+          
+          if (configs && configs.length > 0) {
+            // Switch to latest
+            const latest = configs[0];
+            console.log('[App] Falling back to latest config:', latest.userId);
+            setPageLoading(true); // Ensure loading stays true
+            window.history.replaceState({}, '', `/?userId=${latest.userId}`);
+            setUrlUserId(latest.userId);
+            // The effect will re-trigger with new ID
+          } else {
+            // No configs exist, create one
+            console.log('[App] No configs found, creating new one');
+            const newConfig = await api.saveConfig({
+              tmdbApiKey: config.apiKey,
+              catalogs: [],
+              preferences: {},
+            });
+            setPageLoading(true); // Ensure loading stays true
+            window.history.replaceState({}, '', `/?userId=${newConfig.userId}`);
+            setUrlUserId(newConfig.userId);
+            // Refresh list
+            await loadUserConfigs();
+          }
+        } catch (fallbackErr) {
+          console.error('[App] Fallback failed:', fallbackErr);
+          addToast('Failed to recover configuration', 'error');
+          setPageLoading(false); // Only stop loading if fallback completely failed
+        }
       });
   }, [urlUserId, config.authChecked, isSetup]); // eslint-disable-line react-hooks/exhaustive-deps
 

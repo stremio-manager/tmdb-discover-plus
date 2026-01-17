@@ -4,6 +4,9 @@ import * as tmdb from '../services/tmdb.js';
 import { shuffleArray, getBaseUrl, normalizeGenreName, parseIdArray } from '../utils/helpers.js';
 import { resolveDynamicDatePreset } from '../utils/dateHelpers.js';
 import { createLogger } from '../utils/logger.js';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 
 const log = createLogger('addon');
 
@@ -175,13 +178,9 @@ async function handleCatalogRequest(userId, type, catalogId, extra, res) {
           });
         } else {
           try {
-            const genresPath = path.join(
-              process.cwd(),
-              'server',
-              'src',
-              'services',
-              'tmdb_genres.json'
-            );
+            const __filename = fileURLToPath(import.meta.url);
+            const __dirname = path.dirname(__filename);
+            const genresPath = path.resolve(__dirname, '..', 'services', 'tmdb_genres.json');
             const raw = fs.readFileSync(genresPath, 'utf8');
             const staticGenreMap = JSON.parse(raw);
             const mapping = staticGenreMap[mediaType] || {};

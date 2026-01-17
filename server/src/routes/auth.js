@@ -114,7 +114,6 @@ router.post('/login', strictRateLimit, async (req, res) => {
 
     await saveUserConfig({
       userId: newUserId,
-      tmdbApiKey: apiKey,
       tmdbApiKeyEncrypted: encryptedKey,
       catalogs: [],
       preferences: {},

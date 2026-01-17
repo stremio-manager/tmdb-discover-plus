@@ -26,14 +26,6 @@ export function getApiKeyFromConfig(config) {
     if (decrypted) return decrypted;
   }
 
-  // Legacy format: check if it looks encrypted first
-  if (config.tmdbApiKey) {
-    if (isEncrypted(config.tmdbApiKey)) {
-      return decrypt(config.tmdbApiKey);
-    }
-    return config.tmdbApiKey;
-  }
-
   return null;
 }
 
@@ -52,71 +44,7 @@ export async function getUserConfig(userId, overrideApiKey = null) {
         userId: config?.userId,
         catalogCount: config?.catalogs?.length || 0,
       });
-      // Resolve stored IDs into display placeholders for UI
-      try {
-        // Allow caller to provide an apiKey (e.g. the user entered it on the Configure page)
-        const apiKey = overrideApiKey || getApiKeyFromConfig(config);
-        if (apiKey && config.catalogs && config.catalogs.length > 0) {
-          // Resolve in parallel with limited concurrency
-          const resolveCatalogPromises = config.catalogs.map(async (catalog) => {
-            const filters = catalog.filters || {};
 
-            // Helper to parse CSV or array into string array
-            const parseIds = (val) => {
-              if (!val) return [];
-              if (Array.isArray(val)) return val.map(String).filter(Boolean);
-              return String(val)
-                .split(',')
-                .map((s) => s.trim())
-                .filter(Boolean);
-            };
-
-            const withPeopleIds = parseIds(filters.withPeople);
-            const withCompaniesIds = parseIds(filters.withCompanies);
-            const withKeywordsIds = parseIds(filters.withKeywords);
-
-            // Resolve people
-            const peopleResolved = await Promise.all(
-              withPeopleIds.map((id) => tmdb.getPersonById(apiKey, id))
-            );
-            const peoplePlaceholders = peopleResolved
-              .filter(Boolean)
-              .map((p) => ({ value: String(p.id), label: p.name }));
-
-            // Resolve companies
-            const companiesResolved = await Promise.all(
-              withCompaniesIds.map((id) => tmdb.getCompanyById(apiKey, id))
-            );
-            const companyPlaceholders = companiesResolved
-              .filter(Boolean)
-              .map((cmp) => ({ value: String(cmp.id), label: cmp.name }));
-
-            // Resolve keywords
-            const keywordsResolved = await Promise.all(
-              withKeywordsIds.map((id) => tmdb.getKeywordById(apiKey, id))
-            );
-            const keywordPlaceholders = keywordsResolved
-              .filter(Boolean)
-              .map((k) => ({ value: String(k.id), label: k.name }));
-
-            return {
-              ...catalog,
-              filters: {
-                ...filters,
-                // Attach resolved arrays (client will use these for placeholders)
-                withPeopleResolved: peoplePlaceholders,
-                withCompaniesResolved: companyPlaceholders,
-                withKeywordsResolved: keywordPlaceholders,
-              },
-            };
-          });
-
-          const resolvedCatalogs = await Promise.all(resolveCatalogPromises);
-          return { ...config, catalogs: resolvedCatalogs };
-        }
-      } catch (resolveErr) {
-        log.error('Resolution error', { error: resolveErr.message });
-      }
 
       return config;
     } catch (err) {
@@ -148,20 +76,20 @@ export async function saveUserConfig(config) {
 
   // Handle API key - prefer encrypted if provided, otherwise encrypt raw key
   let encryptedApiKey = config.tmdbApiKeyEncrypted || null;
-  let rawApiKey = config.tmdbApiKey || null;
-
-  // Validate raw key format if provided
-  if (rawApiKey) {
-    rawApiKey = sanitizeString(rawApiKey, 64);
-    if (!isValidApiKeyFormat(rawApiKey)) {
-      throw new Error('Invalid TMDB API key format');
-    }
-    // Encrypt the raw key if encryption is available
-    try {
-      encryptedApiKey = encrypt(rawApiKey);
-    } catch (encryptError) {
-      log.warn('Encryption not available, storing raw key', { error: encryptError.message });
-    }
+  let rawApiKey = null;
+  
+  // If raw key provided, validate and encrypt
+  if (config.tmdbApiKey) {
+     const safeKey = sanitizeString(config.tmdbApiKey, 64);
+     if (!isValidApiKeyFormat(safeKey)) {
+        throw new Error('Invalid TMDB API key format');
+     }
+     rawApiKey = safeKey;
+     try {
+        encryptedApiKey = encrypt(safeKey);
+     } catch (encryptError) {
+        throw new Error('Encryption failed');
+     }
   }
 
   // Ensure catalogs have proper _id fields (applies to both DB and memory paths)
@@ -172,7 +100,7 @@ export async function saveUserConfig(config) {
 
   if (isConnected()) {
     try {
-      // Build update object - use encrypted key if available, remove legacy field
+      // Build update object
       const updateData = {
         configName: config.configName || '',
         catalogs: processedCatalogs,
@@ -186,20 +114,18 @@ export async function saveUserConfig(config) {
         updateData.apiKeyId = computeApiKeyId(apiKeyForHash);
       }
 
-      // Set encrypted key and optionally keep legacy for backward compat
+      // Set encrypted key
       if (encryptedApiKey) {
         updateData.tmdbApiKeyEncrypted = encryptedApiKey;
       }
-      // Remove legacy key when we have encrypted (no longer needed)
-      // Legacy will only be used if encryption fails
 
       // Use findOneAndUpdate to properly handle nested array updates
       const result = await UserConfig.findOneAndUpdate(
         { userId: safeUserId },
         {
           $set: updateData,
-          ...(encryptedApiKey ? { $unset: { tmdbApiKey: 1 } } : {}),
         },
+
         {
           new: true,
           upsert: true,
@@ -230,7 +156,8 @@ export async function saveUserConfig(config) {
     ...config,
     userId: safeUserId,
     apiKeyId: computedApiKeyId,
-    tmdbApiKey: rawApiKey,
+    apiKeyId: computedApiKeyId,
+    // tmdbApiKey removed (legacy)
     tmdbApiKeyEncrypted: encryptedApiKey,
     configName: config.configName || '',
     catalogs: processedCatalogs,

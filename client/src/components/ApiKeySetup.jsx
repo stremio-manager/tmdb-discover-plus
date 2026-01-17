@@ -56,45 +56,24 @@ export function ApiKeySetup({
         <form className="api-key-form" onSubmit={handleSubmit}>
           <div className="input-group">
             <label htmlFor="apiKey">TMDB API Key</label>
-            <div
-              className="input-wrapper"
-              style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
-            >
+            <div className="input-wrapper">
               <Key
                 size={18}
-                className="input-icon"
-                style={{
-                  position: 'absolute',
-                  left: '12px',
-                  pointerEvents: 'none',
-                  color: 'var(--text-muted)',
-                }}
+                className="input-icon input-icon-overlay"
               />
               <input
                 id="apiKey"
                 type={showApiKey ? 'text' : 'password'}
-                className={`input ${error ? 'error' : ''}`}
+                className={`input input-with-icons ${error ? 'error' : ''}`}
                 placeholder="Enter your API key..."
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 autoComplete="off"
-                style={{ paddingLeft: '40px', paddingRight: '40px' }}
               />
               <button
                 type="button"
                 onClick={() => setShowApiKey(!showApiKey)}
-                style={{
-                  position: 'absolute',
-                  right: '12px',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--text-muted)',
-                }}
+                className="input-toggle-btn"
                 title={showApiKey ? 'Hide API key' : 'Show API key'}
               >
                 {showApiKey ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -112,17 +91,8 @@ export function ApiKeySetup({
             {error && <p className="error-message">{error}</p>}
           </div>
 
-          <div className="input-group" style={{ marginTop: '16px' }}>
-            <label
-              className="checkbox-label"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                cursor: 'pointer',
-                fontSize: '14px',
-              }}
-            >
+          <div className="input-group mt-4">
+            <label className="checkbox-label checkbox-flex">
               <input
                 type="checkbox"
                 checked={rememberMe}

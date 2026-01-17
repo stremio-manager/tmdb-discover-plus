@@ -17,7 +17,7 @@ export function NewCatalogModal({ isOpen, onClose, onAdd }) {
         genres: [],
         sortBy: 'popularity.desc',
         imdbOnly: false,
-        voteCountMin: 100,
+        voteCountMin: 0,
       },
       enabled: true,
     });

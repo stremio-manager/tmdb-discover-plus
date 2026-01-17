@@ -313,11 +313,7 @@ class ApiService {
     });
   }
 
-  async deleteCatalog(userId, catalogId) {
-    return this.request(`/config/${userId}/catalog/${catalogId}`, {
-      method: 'DELETE',
-    });
-  }
+
 
   async getConfigsByApiKey(apiKey) {
     const token = this.getSessionToken();

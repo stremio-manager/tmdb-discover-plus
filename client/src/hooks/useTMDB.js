@@ -15,12 +15,17 @@ export function useTMDB(apiKey) {
   const [certifications, setCertifications] = useState({ movie: {}, series: {} });
   const [watchRegions, setWatchRegions] = useState([]);
   const [tvNetworks, setTVNetworks] = useState([]);
-  const [loading, setLoading] = useState(false);
+  /* 
+   * Initialize loading to true if apiKey or session exists to prevent 
+   * "content -> spinner" flicker on first render.
+   */
+  const [loading, setLoading] = useState(() => !!(apiKey || api.getSessionToken()));
   const [error, setError] = useState(null);
 
   // Check if authenticated via session token (apiKey not needed on client)
-  const hasAuth = apiKey || api.getSessionToken();
+  const hasAuth = !!(apiKey || api.getSessionToken());
 
+  // Load static data (genres, languages, sort options, etc.)
   // Load static data (genres, languages, sort options, etc.)
   const loadMetadata = useCallback(async () => {
     if (!hasAuth) return;
@@ -29,15 +34,39 @@ export function useTMDB(apiKey) {
     setError(null);
 
     try {
-      // Load all metadata in parallel
+      // 1. Critical Metadata (Blocking UI)
       const [
         movieGenres,
         tvGenres,
         langs,
         ctries,
         sorts,
+        presets
+      ] = await Promise.all([
+        api.getGenres(apiKey, 'movie'),
+        api.getGenres(apiKey, 'series'),
+        api.getLanguages(apiKey),
+        api.getCountries(apiKey),
+        api.getSortOptions(),
+        api.getPresetCatalogs()
+      ]);
+
+      setGenres({ movie: movieGenres, series: tvGenres });
+      setLanguages(langs);
+      setCountries(ctries);
+      setSortOptions(sorts);
+      setPresetCatalogs(presets);
+
+      // 2. Secondary Metadata (Non-blocking / Background)
+      // We start these requests but don't await them for the initial 'loading' state if we wanted to be faster,
+      // but for simplicity/correctness we just batch them in a second wave or just let them run.
+      // To truly unblock TTI, we should let `loading` be false after Critical, and load others silently.
+      
+      // Let's release the loading state now so the UI renders
+      setLoading(false);
+
+      const [
         lists,
-        presets,
         relTypes,
         tvStats,
         tvTyps,
@@ -47,13 +76,7 @@ export function useTMDB(apiKey) {
         regions,
         networks,
       ] = await Promise.all([
-        api.getGenres(apiKey, 'movie'),
-        api.getGenres(apiKey, 'series'),
-        api.getLanguages(apiKey),
-        api.getCountries(apiKey),
-        api.getSortOptions(),
         api.getListTypes(),
-        api.getPresetCatalogs(),
         api.getReleaseTypes(),
         api.getTVStatuses(),
         api.getTVTypes(),
@@ -64,13 +87,7 @@ export function useTMDB(apiKey) {
         api.getTVNetworks(null, ''),
       ]);
 
-      setGenres({ movie: movieGenres, series: tvGenres });
-      setLanguages(langs);
-      setCountries(ctries);
-      // sortOptions now comes as { movie: [...], series: [...] }
-      setSortOptions(sorts);
       setListTypes(lists);
-      setPresetCatalogs(presets);
       setReleaseTypes(relTypes);
       setTVStatuses(tvStats);
       setTVTypes(tvTyps);
@@ -78,15 +95,16 @@ export function useTMDB(apiKey) {
       setCertifications({ movie: movieCerts, series: tvCerts });
       setWatchRegions(regions);
       setTVNetworks(networks);
+
     } catch (err) {
       setError(err.message);
-    } finally {
       setLoading(false);
-    }
+    } 
   }, [apiKey, hasAuth]);
 
   useEffect(() => {
     if (hasAuth) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadMetadata();
     }
   }, [hasAuth, loadMetadata]);
