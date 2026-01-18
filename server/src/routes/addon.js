@@ -275,7 +275,22 @@ async function handleCatalogRequest(userId, type, catalogId, extra, res) {
 
     const filteredMetas = metas.filter((m) => m !== null);
 
-    log.debug('Returning catalog results', { count: filteredMetas.length, page, skip });
+    if (randomize) {
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
+      res.set('Surrogate-Control', 'no-store');
+    } else {
+      res.set('Cache-Control', 'max-age=300, stale-while-revalidate=600');
+    }
+
+    log.debug('Returning catalog results', { 
+      count: filteredMetas.length, 
+      page, 
+      skip,
+      randomize,
+      cacheHeader: res.get('Cache-Control')
+    });
 
     res.json({
       metas: filteredMetas,
