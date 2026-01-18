@@ -1546,8 +1546,9 @@ input[type='date'].input::-webkit-calendar-picker-indicator {
   color: var(--text-secondary);
 }
 
-.searchable-select-option:hover {
-  background: var(--bg-tertiary);
+.searchable-select-option:hover,
+.searchable-select-option.highlighted {
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 

@@ -896,15 +896,16 @@ export function CatalogEditor({
                             label="Sort By"
                             tooltip="How to order your results. Popular shows what's trending now, while rating shows critically acclaimed content."
                           />
-                          <SearchableSelect
-                            options={sortOptions[localCatalog?.type] || sortOptions.movie || []}
-                            value={localCatalog?.filters?.sortBy || 'popularity.desc'}
-                            onChange={(value) => handleFiltersChange('sortBy', value)}
-                            placeholder="Most Popular"
-                            searchPlaceholder="Search..."
-                            labelKey="label"
-                            valueKey="value"
-                          />
+                            <SearchableSelect
+                              options={sortOptions[localCatalog?.type] || sortOptions.movie || []}
+                              value={localCatalog?.filters?.sortBy || 'popularity.desc'}
+                              onChange={(value) => handleFiltersChange('sortBy', value)}
+                              placeholder="Most Popular"
+                              searchPlaceholder="Search..."
+                              labelKey="label"
+                              valueKey="value"
+                              allowClear={false}
+                            />
                         </div>
 
                         <div className="filter-group">
@@ -1386,6 +1387,9 @@ export function CatalogEditor({
                 <Settings size={18} />
                 <div className="filter-section-title-group">
                   <h4 className="filter-section-title">Options</h4>
+                  <span className="filter-section-desc">
+                    Include adult, randomize, or discover-only results
+                  </span>
                 </div>
                 {expandedSections.options ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
               </button>
@@ -1407,6 +1411,24 @@ export function CatalogEditor({
                       <LabelWithTooltip
                         label="Include adult content"
                         tooltip="Include adult/18+ rated content in results. Disabled by default."
+                      />
+                    </label>
+
+                    <label
+                      className="checkbox-label-row"
+                      onClick={() =>
+                        handleFiltersChange('randomize', !localCatalog?.filters?.randomize)
+                      }
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <div
+                        className={`checkbox ${localCatalog?.filters?.randomize ? 'checked' : ''}`}
+                      >
+                        {localCatalog?.filters?.randomize && <Check size={14} />}
+                      </div>
+                      <LabelWithTooltip
+                        label="Randomize Results"
+                        tooltip="Fetch a random page from the matching results and shuffle them. Great for discovering something new every time."
                       />
                     </label>
 

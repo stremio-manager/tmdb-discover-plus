@@ -14,8 +14,10 @@ export function SearchableSelect({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const containerRef = useRef(null);
   const inputRef = useRef(null);
+  const optionsRef = useRef(null);
 
   // Find selected option label
   const selectedOption = options.find((opt) => opt[valueKey] === value);
@@ -25,6 +27,32 @@ export function SearchableSelect({
   const filteredOptions = options.filter((opt) =>
     opt[labelKey]?.toLowerCase().includes(search.toLowerCase())
   );
+
+  // Combined options for keyboard navigation (including clear option if applicable)
+  const allNavOptions = allowClear ? [{ isClear: true }, ...filteredOptions] : filteredOptions;
+
+  const handleOpenToggle = () => {
+    const newIsOpen = !isOpen;
+    setIsOpen(newIsOpen);
+    if (newIsOpen) {
+      setHighlightedIndex(-1);
+    }
+  };
+
+  const handleSearchChange = (e) => {
+    setSearch(e.target.value);
+    setHighlightedIndex(-1);
+  };
+
+  // Scroll highlighted item into view
+  useEffect(() => {
+    if (highlightedIndex >= 0 && optionsRef.current) {
+      const highlightedEl = optionsRef.current.children[highlightedIndex];
+      if (highlightedEl) {
+        highlightedEl.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [highlightedIndex]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -62,8 +90,24 @@ export function SearchableSelect({
     if (e.key === 'Escape') {
       setIsOpen(false);
       setSearch('');
-    } else if (e.key === 'Enter' && filteredOptions.length === 1) {
-      handleSelect(filteredOptions[0][valueKey]);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => (prev < allNavOptions.length - 1 ? prev + 1 : prev));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : prev));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (highlightedIndex >= 0) {
+        const option = allNavOptions[highlightedIndex];
+        if (option.isClear) {
+          handleSelect('');
+        } else {
+          handleSelect(option[valueKey]);
+        }
+      } else if (filteredOptions.length === 1) {
+        handleSelect(filteredOptions[0][valueKey]);
+      }
     }
   };
 
@@ -71,12 +115,12 @@ export function SearchableSelect({
     <div className={`searchable-select ${isOpen ? 'open' : ''}`} ref={containerRef}>
       <div
         className={`searchable-select-trigger ${isOpen ? 'open' : ''}`}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleOpenToggle}
         role="combobox"
         aria-expanded={isOpen}
         aria-haspopup="listbox"
         tabIndex={0}
-        onKeyDown={(e) => e.key === 'Enter' && setIsOpen(!isOpen)}
+        onKeyDown={(e) => e.key === 'Enter' && handleOpenToggle()}
       >
         <span className={displayValue ? '' : 'placeholder'}>{displayValue || placeholder}</span>
         <div className="searchable-select-icons">
@@ -102,17 +146,18 @@ export function SearchableSelect({
               ref={inputRef}
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={handleSearchChange}
               onKeyDown={handleKeyDown}
               placeholder={searchPlaceholder}
               className="searchable-select-input"
             />
           </div>
-          <div className="searchable-select-options">
+          <div className="searchable-select-options" ref={optionsRef}>
             {allowClear && (
               <div
-                className={`searchable-select-option ${!value ? 'selected' : ''}`}
+                className={`searchable-select-option ${!value ? 'selected' : ''} ${highlightedIndex === 0 ? 'highlighted' : ''}`}
                 onClick={() => handleSelect('')}
+                onMouseMove={() => setHighlightedIndex(0)}
                 role="option"
                 aria-selected={!value}
               >
@@ -120,17 +165,21 @@ export function SearchableSelect({
               </div>
             )}
             {filteredOptions.length > 0 ? (
-              filteredOptions.map((option) => (
-                <div
-                  key={option[valueKey]}
-                  className={`searchable-select-option ${value === option[valueKey] ? 'selected' : ''}`}
-                  onClick={() => handleSelect(option[valueKey])}
-                  role="option"
-                  aria-selected={value === option[valueKey]}
-                >
-                  {option[labelKey]}
-                </div>
-              ))
+              filteredOptions.map((option, index) => {
+                const navIndex = allowClear ? index + 1 : index;
+                return (
+                  <div
+                    key={option[valueKey]}
+                    className={`searchable-select-option ${value === option[valueKey] ? 'selected' : ''} ${highlightedIndex === navIndex ? 'highlighted' : ''}`}
+                    onClick={() => handleSelect(option[valueKey])}
+                    onMouseMove={() => setHighlightedIndex(navIndex)}
+                    role="option"
+                    aria-selected={value === option[valueKey]}
+                  >
+                    {option[labelKey]}
+                  </div>
+                );
+              })
             ) : (
               <div className="searchable-select-empty">{emptyMessage}</div>
             )}

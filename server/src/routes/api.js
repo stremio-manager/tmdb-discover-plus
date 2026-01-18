@@ -325,7 +325,7 @@ router.post('/preview', requireAuth, resolveApiKey, async (req, res) => {
     let results;
 
     const listType = resolvedFilters?.listType;
-    const isRandomSort = resolvedFilters?.sortBy === 'random';
+    const randomize = resolvedFilters?.randomize || (resolvedFilters?.sortBy === 'random');
 
     if (listType && listType !== 'discover') {
       results = await tmdb.fetchSpecialList(apiKey, listType, type, {
@@ -333,28 +333,14 @@ router.post('/preview', requireAuth, resolveApiKey, async (req, res) => {
         displayLanguage: resolvedFilters?.displayLanguage,
         language: resolvedFilters?.language,
         region: resolvedFilters?.originCountry,
+        randomize,
       });
-    } else if (isRandomSort) {
-      const discoverResult = await tmdb.discover(apiKey, {
-        type,
-        ...resolvedFilters,
-        sortBy: 'popularity.desc',
-        page: 1,
-      });
-      const maxPage = Math.min(discoverResult.total_pages || 1, 500);
-      const randomPage = Math.floor(Math.random() * maxPage) + 1;
-      results = await tmdb.discover(apiKey, {
-        type,
-        ...resolvedFilters,
-        sortBy: 'popularity.desc',
-        page: randomPage,
-      });
-      results.results = shuffleArray(results.results || []);
     } else {
       results = await tmdb.discover(apiKey, {
         type,
         ...resolvedFilters,
         page,
+        randomize,
       });
     }
 

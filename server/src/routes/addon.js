@@ -240,7 +240,7 @@ async function handleCatalogRequest(userId, type, catalogId, extra, res) {
     const resolvedFilters = resolveDynamicDatePreset(effectiveFilters, type);
 
     const listType = resolvedFilters?.listType || catalogConfig.filters?.listType;
-    const isRandomSort = (resolvedFilters?.sortBy || catalogConfig.filters?.sortBy) === 'random';
+    const randomize = resolvedFilters?.randomize || catalogConfig.filters?.randomize || (resolvedFilters?.sortBy === 'random');
 
     if (search) {
       result = await tmdb.search(apiKey, search, type, page, {
@@ -254,31 +254,14 @@ async function handleCatalogRequest(userId, type, catalogId, extra, res) {
             resolvedFilters?.displayLanguage || catalogConfig.filters?.displayLanguage,
           language: resolvedFilters?.language || catalogConfig.filters?.language,
           region: resolvedFilters?.originCountry || catalogConfig.filters?.originCountry,
+          randomize,
         });
-      } else if (isRandomSort) {
-        const discoverResult = await tmdb.discover(apiKey, {
-          type,
-          ...resolvedFilters,
-          sortBy: 'popularity.desc',
-          page: 1,
-        });
-        const maxPage = Math.min(discoverResult.total_pages || 1, 500);
-        const randomPage = Math.floor(Math.random() * maxPage) + 1;
-
-        result = await tmdb.discover(apiKey, {
-          type,
-          ...resolvedFilters,
-          sortBy: 'popularity.desc',
-          page: randomPage,
-        });
-        if (result?.results) {
-          result.results = shuffleArray(result.results);
-        }
       } else {
         result = await tmdb.discover(apiKey, {
           type,
           ...resolvedFilters,
           page,
+          randomize,
         });
       }
     }

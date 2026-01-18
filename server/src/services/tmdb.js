@@ -305,6 +305,7 @@ export async function discover(apiKey, options = {}) {
     voteCountMin = 0,
     page = 1,
     genreMatchMode = 'any', // 'any' (OR) or 'all' (AND)
+    randomize = false,
     // Movie-specific
     releaseDateFrom,
     releaseDateTo,
@@ -459,6 +460,18 @@ export async function discover(apiKey, options = {}) {
     params.with_watch_monetization_types = watchMonetizationTypes.join('|');
   }
 
+  if (randomize) {
+    const discoverResult = await tmdbFetch(endpoint, apiKey, { ...params, page: 1 });
+    const maxPage = Math.min(discoverResult.total_pages || 1, 500);
+    const randomPage = Math.floor(Math.random() * maxPage) + 1;
+
+    const result = await tmdbFetch(endpoint, apiKey, { ...params, page: randomPage });
+    if (result?.results) {
+      result.results = shuffleArray(result.results);
+    }
+    return result;
+  }
+
   return tmdbFetch(endpoint, apiKey, params);
 }
 
@@ -507,14 +520,21 @@ export async function fetchSpecialList(apiKey, listType, type = 'movie', options
       endpoint = `/${mediaType}/popular`;
       break;
     case 'random':
-      const discoverResult = await discover(apiKey, { type, page: 1, ...options });
-      const maxPage = Math.min(discoverResult.total_pages || 1, 500);
-      const randomPage = Math.floor(Math.random() * maxPage) + 1;
-      const randomResult = await discover(apiKey, { type, page: randomPage, ...options });
-      randomResult.results = shuffleArray(randomResult.results || []);
-      return randomResult;
+      return discover(apiKey, { type, page, ...options, randomize: true });
     default:
-      return discover(apiKey, { type, page, ...options });
+      break;
+  }
+
+  if (options.randomize) {
+    const discoverResult = await tmdbFetch(endpoint, apiKey, { ...params, page: 1 });
+    const maxPage = Math.min(discoverResult.total_pages || 1, 500);
+    const randomPage = Math.floor(Math.random() * maxPage) + 1;
+
+    const result = await tmdbFetch(endpoint, apiKey, { ...params, page: randomPage });
+    if (result?.results) {
+      result.results = shuffleArray(result.results);
+    }
+    return result;
   }
 
   return tmdbFetch(endpoint, apiKey, params);
@@ -918,8 +938,6 @@ export const PRESET_CATALOGS = {
  */
 export const SORT_OPTIONS = {
   movie: [
-    // Random
-    { value: 'random', label: '🎲 Random Shuffle' },
     // Popularity
     { value: 'popularity.desc', label: 'Most Popular' },
     { value: 'popularity.asc', label: 'Least Popular' },
@@ -943,8 +961,6 @@ export const SORT_OPTIONS = {
     { value: 'title.desc', label: 'Localized Title Z → A' },
   ],
   series: [
-    // Random
-    { value: 'random', label: '🎲 Random Shuffle' },
     // Popularity
     { value: 'popularity.desc', label: 'Most Popular' },
     { value: 'popularity.asc', label: 'Least Popular' },
