@@ -5,20 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.3.0] - 2026-01-16
+## [2.3.0] - 2026-01-18
 
 ### Added
 
 - **Security & Authentication** - Implemented TMDB API key encryption and session-based authentication for improved security.
-- **Test Architecture Overhaul** - Restructured integration tests into a unified `server/tests` directory with shared helpers and verified all 88 tests pass.
-- **Docker Production Fixes** - Fixed Docker build pipeline and standardized `Dockerfile` naming.
+- **Test Architecture Overhaul** - Restructured integration tests into a unified `server/tests` directory with shared helpers.
+- **Randomize Results Toggle** - Moved "Random" from a sort option to a separate toggle, allowing randomization to be combined with any sort order (e.g., Highest Rated + Randomized).
+- **Keyboard Navigation** - Full support for Arrow Up/Down and Enter in all filter dropdowns for better accessibility and faster navigation.
+- **Discover Only Filter** - New option to force "Custom Discover" mode, bypassing preset lists for more granular control over results.
+- **Shuffle Catalog** - Enhanced catalog management with the ability to shuffle Catalogs every time you open stremio.
+- **Copy Catalog** - Enhanced catalog management with the ability to duplicate Catalogs and Edit On the go.
 - **Verification Workflow** - Added comprehensive verification steps for Docker and CI/CD pipelines.
 
 ### Changed
 
+- **Preview Consistency** - Resolved discrepancies between live preview results and Stremio catalog results.
 - **Relaxed Rate Limits** - Significantly increased API rate limits (Strict: 60/min, API: 300/min, Addon: 1000/min) to better align with TMDB's policy and support heavy Stremio usage.
 - **Deep Code Cleanup** - Removed unused code, legacy comments, and redundant files across the project.
-- **Optimized Deployment** - Improved `.beamupignore` and `.dockerignore` for leaner production builds.
 
 ## [2.2.0] - 2026-01-14
 

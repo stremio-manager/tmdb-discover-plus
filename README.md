@@ -22,7 +22,9 @@ A powerful Stremio addon that lets you create custom movie and TV show catalogs 
 - 🌍 **Region & First Air Date** - Filter by regional releases and TV premiere dates
 - 🗣️ **Display Language** - Localize titles/overviews while keeping original-language filtering
 - 📅 **Dynamic Date Presets** - "Last 30 days" always means 30 days from today, not when you created the catalog
-- 📊 **Sorting Options** - Sort by popularity, rating, release date, revenue, or random
+- 🎲 **Randomize Results** - Dedicated randomization toggle that works with any sort order
+- ⌨️ **Keyboard Navigation** - Full support for navigating filter dropdowns via keyboard
+- 📊 **Sorting Options** - Sort by popularity, rating, release date, or revenue
 - 👀 **Live Preview** - See catalog results before installing with clickable links to TMDB
 - 🔄 **Easy Updates** - Edit your catalogs anytime via the configuration URL
 - 🆔 **IMDB Integration** - Full IMDB ID support for best Stremio compatibility
@@ -186,7 +188,8 @@ CORS_ORIGIN=*
 | **Year Range**        | Release year from/to                                                      |
 | **Rating Range**      | TMDB vote average (0-10)                                                  |
 | **Runtime**           | Filter by duration in minutes (with presets: Short, Standard, Long, Epic) |
-| **Sort By**           | Popularity, Rating, Release Date, Revenue, Random                         |
+| **Sort By**           | Popularity, Rating, Release Date, Revenue                                 |
+| **Randomize**         | Fetch a random page from results and shuffle them locally                 |
 | **Language**          | Original language filter                                                  |
 | **Country**           | Origin country filter                                                     |
 | **Region**            | Regional release filter (for theatrical releases)                         |
