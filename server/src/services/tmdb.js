@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { shuffleArray } from '../utils/helpers.js';
 import { createLogger } from '../utils/logger.js';
+import { generatePosterUrl, generateBackdropUrl, isValidPosterConfig } from './posterService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const log = createLogger('tmdb');
@@ -576,8 +577,13 @@ export async function getDetails(apiKey, tmdbId, type = 'movie') {
 
 /**
  * Convert TMDB details to a full Stremio Meta Object.
+ * @param {Object} details - TMDB details object
+ * @param {string} type - Content type ('movie' or 'series')
+ * @param {string|null} imdbId - IMDb ID if available
+ * @param {Object|null} posterOptions - Optional poster service config { apiKey, service }
+ * @returns {Object} Stremio meta object
  */
-export function toStremioFullMeta(details, type, imdbId = null) {
+export function toStremioFullMeta(details, type, imdbId = null, posterOptions = null) {
   if (!details) return {};
   const isMovie = type === 'movie';
   const title = isMovie ? details.title : details.name;
@@ -611,19 +617,40 @@ export function toStremioFullMeta(details, type, imdbId = null) {
     if (typeof first === 'number') runtimeMin = first;
   }
 
-  const poster = details.poster_path ? `${TMDB_IMAGE_BASE}/w500${details.poster_path}` : null;
-  const background = details.backdrop_path
-    ? `${TMDB_IMAGE_BASE}/w1280${details.backdrop_path}`
-    : null;
+  // Determine effective IMDb ID
+  const effectiveImdbId = imdbId || details?.external_ids?.imdb_id || null;
+
+  // Generate poster URL (use poster service if configured, fallback to TMDB)
+  let poster = details.poster_path ? `${TMDB_IMAGE_BASE}/w500${details.poster_path}` : null;
+  let background = details.backdrop_path ? `${TMDB_IMAGE_BASE}/w1280${details.backdrop_path}` : null;
+
+  if (isValidPosterConfig(posterOptions)) {
+    const enhancedPoster = generatePosterUrl({
+      ...posterOptions,
+      tmdbId: details.id,
+      type,
+      imdbId: effectiveImdbId,
+    });
+    if (enhancedPoster) poster = enhancedPoster;
+
+    const enhancedBackdrop = generateBackdropUrl({
+      ...posterOptions,
+      tmdbId: details.id,
+      type,
+      imdbId: effectiveImdbId,
+    });
+    if (enhancedBackdrop) background = enhancedBackdrop;
+  }
+
   const logo =
     Array.isArray(details.images?.logos) && details.images.logos.length > 0
       ? details.images.logos.find((l) => l?.file_path)?.file_path
       : null;
 
   return {
-    id: imdbId || `tmdb:${details.id}`,
+    id: effectiveImdbId || `tmdb:${details.id}`,
     tmdbId: details.id,
-    imdbId: imdbId || details?.external_ids?.imdb_id || null,
+    imdbId: effectiveImdbId,
     type: type === 'series' ? 'series' : 'movie',
     name: title,
     poster,
@@ -662,8 +689,13 @@ export async function search(apiKey, query, type = 'movie', page = 1) {
 
 /**
  * Convert TMDB result to Stremio meta preview format
+ * @param {Object} item - TMDB item object
+ * @param {string} type - Content type ('movie' or 'series')
+ * @param {string|null} imdbId - IMDb ID if available
+ * @param {Object|null} posterOptions - Optional poster service config { apiKey, service }
+ * @returns {Object} Stremio meta preview object
  */
-export function toStremioMeta(item, type, imdbId = null) {
+export function toStremioMeta(item, type, imdbId = null, posterOptions = null) {
   const isMovie = type === 'movie';
   const title = isMovie ? item.title : item.name;
   const releaseDate = isMovie ? item.release_date : item.first_air_date;
@@ -690,15 +722,37 @@ export function toStremioMeta(item, type, imdbId = null) {
     if (name) mappedGenres.push(name);
   });
 
+  // Generate poster URL (use poster service if configured, fallback to TMDB)
+  let poster = item.poster_path ? `${TMDB_IMAGE_BASE}/w500${item.poster_path}` : null;
+  let background = item.backdrop_path ? `${TMDB_IMAGE_BASE}/w1280${item.backdrop_path}` : null;
+
+  if (isValidPosterConfig(posterOptions)) {
+    const enhancedPoster = generatePosterUrl({
+      ...posterOptions,
+      tmdbId: item.id,
+      type,
+      imdbId,
+    });
+    if (enhancedPoster) poster = enhancedPoster;
+
+    const enhancedBackdrop = generateBackdropUrl({
+      ...posterOptions,
+      tmdbId: item.id,
+      type,
+      imdbId,
+    });
+    if (enhancedBackdrop) background = enhancedBackdrop;
+  }
+
   return {
     id: imdbId || `tmdb:${item.id}`,
     tmdbId: item.id,
     imdbId: imdbId || null,
     type: type === 'series' ? 'series' : 'movie',
     name: title,
-    poster: item.poster_path ? `${TMDB_IMAGE_BASE}/w500${item.poster_path}` : null,
+    poster,
     posterShape: 'poster',
-    background: item.backdrop_path ? `${TMDB_IMAGE_BASE}/w1280${item.backdrop_path}` : null,
+    background,
     description: item.overview || '',
     releaseInfo: year,
     imdbRating: item.vote_average ? item.vote_average.toFixed(1) : null,

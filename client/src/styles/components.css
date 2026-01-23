@@ -144,6 +144,42 @@
   margin-top: 4px;
 }
 
+.header-stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 24px;
+  padding: 6px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 13px;
+  color: var(--text-muted);
+  animation: fadeIn var(--transition-slow) ease;
+}
+
+.stats-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stats-item strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.stats-divider {
+  color: var(--border-color);
+  opacity: 0.5;
+}
+
+@media (max-width: 1024px) {
+  .header-stats {
+    display: none;
+  }
+}
+
 /* Header Actions */
 .header-actions {
   display: flex;
@@ -812,6 +848,18 @@ input[type='date'].input::-webkit-calendar-picker-indicator {
   letter-spacing: 0.5px;
   color: var(--text-muted);
   margin-bottom: 12px;
+}
+
+.poster-settings {
+  margin-bottom: 16px;
+}
+
+.poster-settings .sidebar-section-header:hover .sidebar-section-title {
+  color: var(--text-primary);
+}
+
+.poster-settings .sidebar-section-header:hover svg {
+  color: var(--text-primary);
 }
 
 /* Preset Groups */

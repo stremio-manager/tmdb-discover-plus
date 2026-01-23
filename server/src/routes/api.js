@@ -6,6 +6,7 @@ import {
   getConfigsByApiKey,
   deleteUserConfig,
   getApiKeyFromConfig,
+  getPublicStats,
 } from '../services/configService.js';
 import * as tmdb from '../services/tmdb.js';
 import { getBaseUrl, shuffleArray } from '../utils/helpers.js';
@@ -375,6 +376,23 @@ router.post('/preview', requireAuth, resolveApiKey, async (req, res) => {
       previewEmpty: filteredMetas.length === 0,
     });
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
+// Public Stats Routes (no auth required)
+// ============================================
+
+/**
+ * Get public platform statistics
+ */
+router.get('/stats', async (req, res) => {
+  try {
+    const stats = await getPublicStats();
+    res.json(stats);
+  } catch (error) {
+    log.error('GET /stats error', { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });

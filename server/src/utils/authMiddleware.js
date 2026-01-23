@@ -55,7 +55,10 @@ export async function requireConfigOwnership(req, res, next) {
 
     if (req.apiKeyId !== expectedApiKeyId) {
       log.warn('Ownership check failed', { userId, tokenApiKeyId: req.apiKeyId?.slice(0, 8) });
-      return res.status(403).json({ error: 'Access denied' });
+      return res.status(403).json({
+        error: 'Access denied: This configuration belongs to a different API key',
+        code: 'API_KEY_MISMATCH',
+      });
     }
 
     req.config = config;

@@ -95,6 +95,14 @@ const userConfigSchema = new mongoose.Schema({
     showAdultContent: { type: Boolean, default: false },
     defaultLanguage: { type: String, default: 'en' },
     shuffleCatalogs: { type: Boolean, default: false },
+    // Poster enhancement service (RPDB or Top Posters)
+    posterService: {
+      type: String,
+      enum: ['none', 'rpdb', 'topPosters'],
+      default: 'none',
+    },
+    // Encrypted API key for the selected poster service
+    posterApiKeyEncrypted: { type: String, required: false },
   },
   // Timestamps
   createdAt: { type: Date, default: Date.now },

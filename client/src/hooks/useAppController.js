@@ -35,6 +35,7 @@ export function useAppController() {
   const [isSaving, setIsSaving] = useState(false);
   const [userConfigs, setUserConfigs] = useState([]);
   const [configsLoading, setConfigsLoading] = useState(false);
+  const [showMismatchModal, setShowMismatchModal] = useState(false);
 
   // Guards to prevent duplicate operations
   const loginHandledRef = useRef(false);
@@ -134,40 +135,41 @@ export function useAppController() {
         setPageLoading(false);
       })
       .catch(async (err) => {
+        if (err.code === 'API_KEY_MISMATCH') {
+          logger.warn('[App] API key mismatch for config:', urlUserId);
+          setShowMismatchModal(true);
+          setPageLoading(false);
+          return;
+        }
+
         logger.error('[App] Config load error, attempting fallback:', err);
         
-        // 404 or 403 means the config in URL is invalid/gone/unauthorized
-        // We should fallback to the user's latest config or create a new one
+        // 404 or unknown 403 fallback logic
         try {
-          // Ensure we have the latest list
           const configs = await loadUserConfigs();
           
           if (configs && configs.length > 0) {
-            // Switch to latest
             const latest = configs[0];
             logger.info('[App] Falling back to latest config:', latest.userId);
-            setPageLoading(true); // Ensure loading stays true
+            setPageLoading(true);
             window.history.replaceState({}, '', `/?userId=${latest.userId}`);
             setUrlUserId(latest.userId);
-            // The effect will re-trigger with new ID
           } else {
-            // No configs exist, create one
             logger.info('[App] No configs found, creating new one');
             const newConfig = await api.saveConfig({
               tmdbApiKey: config.apiKey,
               catalogs: [],
               preferences: {},
             });
-            setPageLoading(true); // Ensure loading stays true
+            setPageLoading(true);
             window.history.replaceState({}, '', `/?userId=${newConfig.userId}`);
             setUrlUserId(newConfig.userId);
-            // Refresh list
             await loadUserConfigs();
           }
         } catch (fallbackErr) {
           logger.error('[App] Fallback failed:', fallbackErr);
           addToast('Failed to recover configuration', 'error');
-          setPageLoading(false); // Only stop loading if fallback completely failed
+          setPageLoading(false);
         }
       });
   }, [urlUserId, config.authChecked, isSetup]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -358,6 +360,7 @@ export function useAppController() {
       userConfigs,
       configsLoading,
       isSessionExpired,
+      showMismatchModal,
     },
     actions: {
       addToast,
@@ -382,6 +385,22 @@ export function useAppController() {
           window.location.href = `/?userId=${newConfig.userId}`;
         } catch {
           addToast('Failed to create new configuration', 'error');
+        }
+      },
+      setShowMismatchModal,
+      handleConfigMismatchGoToOwn: async () => {
+        setShowMismatchModal(false);
+        setPageLoading(true);
+        try {
+          const configs = await loadUserConfigs();
+          if (configs && configs.length > 0) {
+            window.location.href = `/?userId=${configs[0].userId}`;
+          } else {
+            // No configs - show setup or create one
+            window.location.href = '/';
+          }
+        } catch {
+          window.location.href = '/';
         }
       },
     },

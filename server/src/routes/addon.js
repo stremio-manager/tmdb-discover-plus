@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getUserConfig, getApiKeyFromConfig } from '../services/configService.js';
+import { getUserConfig, getApiKeyFromConfig, getPosterKeyFromConfig } from '../services/configService.js';
 import * as tmdb from '../services/tmdb.js';
 import { shuffleArray, getBaseUrl, normalizeGenreName, parseIdArray } from '../utils/helpers.js';
 import { resolveDynamicDatePreset } from '../utils/dateHelpers.js';
@@ -123,6 +123,14 @@ async function handleCatalogRequest(userId, type, catalogId, extra, res) {
       log.debug('No API key found for config', { userId });
       return res.json({ metas: [] });
     }
+
+    // Get poster service configuration
+    const posterOptions = config.preferences?.posterService && config.preferences.posterService !== 'none'
+      ? {
+          apiKey: getPosterKeyFromConfig(config),
+          service: config.preferences.posterService,
+        }
+      : null;
 
     let catalogConfig = config.catalogs.find((c) => {
       const id = `tmdb-${c._id || c.name.toLowerCase().replace(/\s+/g, '-')}`;
@@ -269,8 +277,8 @@ async function handleCatalogRequest(userId, type, catalogId, extra, res) {
     const allItems = result?.results || [];
 
     const metas = allItems.map((item) => {
-      // Direct mapping without extra fetching or filtering
-      return tmdb.toStremioMeta(item, type, null);
+      // Direct mapping with optional poster service integration
+      return tmdb.toStremioMeta(item, type, null, posterOptions);
     });
 
     const filteredMetas = metas.filter((m) => m !== null);
@@ -317,6 +325,14 @@ async function handleMetaRequest(userId, type, id, extra, res) {
     const apiKey = getApiKeyFromConfig(config);
     if (!apiKey) return res.json({ meta: {} });
 
+    // Get poster service configuration
+    const posterOptions = config.preferences?.posterService && config.preferences.posterService !== 'none'
+      ? {
+          apiKey: getPosterKeyFromConfig(config),
+          service: config.preferences.posterService,
+        }
+      : null;
+
     const requestedId = String(id || '');
     const language = extra?.displayLanguage || extra?.language || pickPreferredMetaLanguage(config);
 
@@ -340,7 +356,7 @@ async function handleMetaRequest(userId, type, id, extra, res) {
     const detailsImdb = details?.external_ids?.imdb_id || null;
     imdbId = imdbId || detailsImdb;
 
-    const meta = tmdb.toStremioFullMeta(details, type, imdbId);
+    const meta = tmdb.toStremioFullMeta(details, type, imdbId, posterOptions);
 
     res.json({
       meta,

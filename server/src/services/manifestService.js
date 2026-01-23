@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import * as tmdb from './tmdb.js';
 import { normalizeGenreName, parseIdArray } from '../utils/helpers.js';
 import { createLogger } from '../utils/logger.js';
+import { getApiKeyFromConfig, updateCatalogGenres } from './configService.js';
 
 const log = createLogger('manifestService');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -118,6 +119,8 @@ export async function enrichManifestWithGenres(manifest, config) {
 
         let isDiscoverOnly = false;
         let options = null;
+        let healedFixes = null;
+
         try {
           const savedCatalog = (config.catalogs || []).find((c) => {
             const idFromStored = `tmdb-${c._id || c.name.toLowerCase().replace(/\s+/g, '-')}`;
@@ -128,7 +131,7 @@ export async function enrichManifestWithGenres(manifest, config) {
           });
 
           if (savedCatalog) {
-             isDiscoverOnly = savedCatalog.filters?.discoverOnly === true;
+            isDiscoverOnly = savedCatalog.filters?.discoverOnly === true;
           }
 
           if (savedCatalog && savedCatalog.filters) {
@@ -136,9 +139,42 @@ export async function enrichManifestWithGenres(manifest, config) {
             const excluded = parseIdArray(savedCatalog.filters.excludeGenres);
 
             if (selected.length > 0) {
-              // If specific genres selected, only show those as options + fuzzy matches
+              // Try mapping with available names
               options = selected.map((gid) => idToName[String(gid)]).filter(Boolean);
-              if (options.length === 0 && fullNames && fullNames.length > 0) {
+
+              // If mapping failed, try self-healing
+              if (options.length === 0) {
+                log.info('Genre mapping failed, attempting self-healing', { catalogId: catalog.id });
+                
+                const apiKey = getApiKeyFromConfig(config);
+                if (apiKey) {
+                  try {
+                    const freshGenres = await tmdb.getGenres(apiKey, helperType);
+                    if (Array.isArray(freshGenres) && freshGenres.length > 0) {
+                      const freshMap = {};
+                      freshGenres.forEach(g => freshMap[String(g.id)] = g.name);
+                      
+                      // Retry mapping with fresh data
+                      const healedOptions = selected.map(gid => freshMap[String(gid)]).filter(Boolean);
+                      
+                      if (healedOptions.length > 0) {
+                        options = healedOptions;
+                        healedFixes = healedFixes || {};
+                        healedFixes[savedCatalog.id] = {
+                          genres: selected,
+                          genreNames: healedOptions
+                        };
+                        log.info('Self-healing successful', { catalogId: catalog.id, genres: healedOptions });
+                      }
+                    }
+                  } catch (healErr) {
+                    log.error('Self-healing failed', { error: healErr.message });
+                  }
+                }
+              }
+
+              // Final check/fallback
+              if ((!options || options.length === 0) && fullNames && fullNames.length > 0) {
                 const wantedNorm = selected.map((s) => normalizeGenreName(s));
                 const matched = fullNames.filter((name) =>
                   wantedNorm.includes(normalizeGenreName(name))
@@ -149,13 +185,12 @@ export async function enrichManifestWithGenres(manifest, config) {
               }
 
               if (!options || options.length === 0) {
-                log.warn('Could not map saved genres', {
+                log.warn('Could not map saved genres after all attempts', {
                   catalogId: catalog.id,
                   selectedCount: selected.length,
                 });
               }
             } else if (fullNames && fullNames.length > 0) {
-              // If exclude genres present, show all EXCEPT those
               if (excluded.length > 0) {
                 const excludeNames = excluded.map((gid) => idToName[String(gid)]).filter(Boolean);
                 const excludeSet = new Set(excludeNames);
@@ -164,11 +199,18 @@ export async function enrichManifestWithGenres(manifest, config) {
                 options = fullNames;
               }
             }
-          } else {
-            if (fullNames && fullNames.length > 0) options = fullNames;
+          } else if (fullNames && fullNames.length > 0) {
+            options = fullNames;
           }
         } catch (err) {
           options = null;
+        }
+
+        // Persist fixes if any
+        if (healedFixes) {
+          updateCatalogGenres(config.userId, healedFixes).catch(e => 
+            log.error('Failed to persist healed genres', { error: e.message })
+          );
         }
 
         if (options && options.length > 0) {

@@ -265,6 +265,14 @@ ${COLORS.cyan}══════════════════════
     console.error(error.stack);
     exitCode = 1;
   } finally {
+    // Cleanup: delete test artifacts
+    try {
+      const { cleanupTestArtifacts } = await import('./helpers/utils.js');
+      await cleanupTestArtifacts();
+    } catch (cleanupError) {
+      console.error(`${COLORS.yellow}⚠ Cleanup error: ${cleanupError.message}${COLORS.reset}`);
+    }
+
     // Cleanup: stop server
     if (server) {
       console.log(`${COLORS.dim}Stopping server...${COLORS.reset}`);

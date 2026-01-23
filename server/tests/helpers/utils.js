@@ -34,6 +34,7 @@ const state = {
   skipped: 0,
   results: [],
   sharedData: {}, // For sharing data between tests (e.g., userId)
+  createdUserIds: new Set(), // Track users created during the test run
 };
 
 export function getTestState() {
@@ -46,6 +47,46 @@ export function resetTestState() {
   state.skipped = 0;
   state.results = [];
   state.sharedData = {};
+  state.createdUserIds.clear();
+}
+
+/**
+ * Track a userId for automatic cleanup at the end of the test run.
+ */
+export function trackCreatedUser(userId) {
+  if (userId) {
+    state.createdUserIds.add(userId);
+  }
+}
+
+/**
+ * Deletes all tracked users/configs.
+ */
+export async function cleanupTestArtifacts() {
+  const userIds = Array.from(state.createdUserIds);
+  if (userIds.length === 0) return;
+
+  log(`Cleaning up ${userIds.length} test configs...`, 'info');
+  
+  // Use the login helper to get a token if we don't have one
+  // or use the one we have
+  const token = getSharedData('authToken');
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+  for (const userId of userIds) {
+    try {
+      const res = await del(`/api/config/${userId}`, { headers });
+      if (res.ok) {
+         log(`  ✓ Deleted config for ${userId}`, 'success');
+      } else {
+         log(`  ✗ Failed to delete config for ${userId}: ${res.status}`, 'warn');
+      }
+    } catch (err) {
+      log(`  ✗ Error deleting config for ${userId}: ${err.message}`, 'error');
+    }
+  }
+  
+  state.createdUserIds.clear();
 }
 
 export function setSharedData(key, value) {
@@ -77,6 +118,7 @@ export async function loginAndGetToken() {
   setSharedData('authToken', token);
   if (res.data.userId) {
     setSharedData('userId', res.data.userId);
+    trackCreatedUser(res.data.userId);
   }
   return token;
 }

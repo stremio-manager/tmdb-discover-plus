@@ -81,9 +81,10 @@ class ApiService {
     }
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Request failed' }));
-      const err = new Error(error.error || 'Request failed');
+      const errorData = await response.json().catch(() => ({ error: 'Request failed' }));
+      const err = new Error(errorData.error || 'Request failed');
       err.status = response.status;
+      err.code = errorData.code;
       throw err;
     }
 
@@ -133,6 +134,11 @@ class ApiService {
       body: JSON.stringify({ apiKey }),
       headers: {},
     });
+  }
+
+  // Platform statistics
+  async getStats() {
+    return this.request('/stats', { method: 'GET' });
   }
 
   // The following methods now use session authentication

@@ -30,6 +30,16 @@ export function getApiKeyFromConfig(config) {
 }
 
 /**
+ * Extracts the poster service API key from config preferences
+ * @param {object} config - The user config object
+ * @returns {string|null} - The decrypted poster API key or null
+ */
+export function getPosterKeyFromConfig(config) {
+  if (!config?.preferences?.posterApiKeyEncrypted) return null;
+  return decrypt(config.preferences.posterApiKeyEncrypted);
+}
+
+/**
  * Get user config (from DB or memory)
  */
 export async function getUserConfig(userId, overrideApiKey = null) {
@@ -101,10 +111,27 @@ export async function saveUserConfig(config) {
   if (isConnected()) {
     try {
       // Build update object
+      // Process preferences with poster API key encryption
+      const processedPreferences = { ...(config.preferences || {}) };
+      
+      // Handle poster API key encryption
+      if (config.preferences?.posterApiKey) {
+        const rawPosterKey = sanitizeString(config.preferences.posterApiKey, 128);
+        if (rawPosterKey) {
+          try {
+            processedPreferences.posterApiKeyEncrypted = encrypt(rawPosterKey);
+          } catch (encryptError) {
+            log.error('Failed to encrypt poster API key', { error: encryptError.message });
+          }
+        }
+        // Remove raw key from preferences (should not be stored)
+        delete processedPreferences.posterApiKey;
+      }
+
       const updateData = {
         configName: config.configName || '',
         catalogs: processedCatalogs,
-        preferences: config.preferences || {},
+        preferences: processedPreferences,
         updatedAt: new Date(),
       };
 
@@ -166,6 +193,55 @@ export async function saveUserConfig(config) {
   memoryStore.set(safeUserId, memConfig);
   log.debug('Config saved to memory store', { userId: safeUserId });
   return memConfig;
+}
+
+/**
+ * Updates genre IDs/names for specific catalogs (used for self-healing)
+ */
+export async function updateCatalogGenres(userId, fixes) {
+  if (!fixes || Object.keys(fixes).length === 0) return;
+
+  log.info('Updating catalog genres (self-healing)', { userId, fixedCount: Object.keys(fixes).length });
+
+  if (isConnected()) {
+    try {
+      const config = await UserConfig.findOne({ userId });
+      if (!config) return;
+
+      let changed = false;
+      config.catalogs = config.catalogs.map((cat) => {
+        if (fixes[cat.id]) {
+          cat.filters = {
+            ...cat.filters,
+            genres: fixes[cat.id].genres,
+            genreNames: fixes[cat.id].genreNames,
+          };
+          changed = true;
+        }
+        return cat;
+      });
+
+      if (changed) {
+        config.updatedAt = new Date();
+        await config.save();
+        log.info('Persisted healed genres to MongoDB', { userId });
+      }
+    } catch (err) {
+      log.error('Failed to auto-heal genres in MongoDB', { userId, error: err.message });
+    }
+  } else {
+    const config = memoryStore.get(userId);
+    if (config) {
+      Object.entries(fixes).forEach(([catalogId, fix]) => {
+        const cat = config.catalogs.find((c) => c.id === catalogId);
+        if (cat) {
+          cat.filters.genres = fix.genres;
+          cat.filters.genreNames = fix.genreNames;
+        }
+      });
+      log.info('Persisted healed genres to memory store', { userId });
+    }
+  }
 }
 
 /**
@@ -263,3 +339,48 @@ export async function deleteUserConfig(userId, apiKey) {
   log.info('Config deleted from memory store', { userId: safeUserId });
   return { deleted: true, userId: safeUserId };
 }
+
+/**
+ * Get public platform statistics (totals)
+ */
+export async function getPublicStats() {
+  if (isConnected()) {
+    try {
+      // Count unique users by api key hash
+      const totalUsers = await UserConfig.distinct('apiKeyId').then((ids) => ids.length);
+
+      // Aggregate total catalogs with listType discover
+      const catalogStats = await UserConfig.aggregate([
+        { $unwind: '$catalogs' },
+        { $match: { 'catalogs.filters.listType': 'discover' } },
+        { $count: 'total' },
+      ]);
+      const totalCatalogs = catalogStats[0]?.total || 0;
+
+      return { totalUsers, totalCatalogs };
+    } catch (error) {
+      log.error('Failed to get public stats', { error: error.message });
+      return { totalUsers: 0, totalCatalogs: 0 };
+    }
+  }
+
+  // Memory store fallback
+  try {
+    const configs = Array.from(memoryStore.values());
+    const uniqueApiKeyIds = new Set(configs.map((c) => c.apiKeyId).filter(Boolean));
+    const totalUsers = uniqueApiKeyIds.size;
+
+    let totalCatalogs = 0;
+    configs.forEach((config) => {
+      const discoverCatalogs = (config.catalogs || []).filter(
+        (c) => c.filters?.listType === 'discover' || !c.filters?.listType
+      );
+      totalCatalogs += discoverCatalogs.length;
+    });
+
+    return { totalUsers, totalCatalogs };
+  } catch (error) {
+    return { totalUsers: 0, totalCatalogs: 0 };
+  }
+}
+

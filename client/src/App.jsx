@@ -4,6 +4,7 @@ import { CatalogSidebar } from './components/CatalogSidebar';
 import { CatalogEditor } from './components/CatalogEditor';
 import { InstallModal } from './components/InstallModal';
 import { NewCatalogModal } from './components/NewCatalogModal';
+import { ConfigMismatchModal } from './components/ConfigMismatchModal';
 import { ToastContainer } from './components/Toast';
 import { ConfigDropdown } from './components/ConfigDropdown';
 import { useAppController } from './hooks/useAppController';
@@ -208,6 +209,17 @@ function App() {
         stremioUrl={installData?.stremioUrl}
         configureUrl={installData?.configureUrl}
         userId={installData?.userId}
+      />
+
+      <ConfigMismatchModal
+        isOpen={state.showMismatchModal}
+        onGoToOwn={actions.handleConfigMismatchGoToOwn}
+        onLoginNew={() => {
+          actions.setShowMismatchModal(false);
+          config.logout();
+          state.setIsSetup(true);
+          state.setWantsToChangeKey(true);
+        }}
       />
 
       {/* Toasts */}
