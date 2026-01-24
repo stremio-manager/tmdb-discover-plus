@@ -2,10 +2,7 @@
  * Poster Service Tests
  */
 
-import {
-  runTest,
-  assert,
-} from '../helpers/utils.js';
+import { runTest, assert } from '../helpers/utils.js';
 import {
   generatePosterUrl,
   generateBackdropUrl,
@@ -46,7 +43,10 @@ export async function run() {
       type: 'movie',
       imdbId: 'tt1234567',
     });
-    assert(result === 'https://api.ratingposterdb.com/test-api-key-123/imdb/poster-default/tt1234567.jpg?fallback=true');
+    assert(
+      result ===
+        'https://api.ratingposterdb.com/test-api-key-123/imdb/poster-default/tt1234567.jpg?fallback=true'
+    );
   });
 
   await runTest(SUITE, 'should generate RPDB URL with TMDb movie ID', async () => {
@@ -56,7 +56,10 @@ export async function run() {
       tmdbId: 12345,
       type: 'movie',
     });
-    assert(result === 'https://api.ratingposterdb.com/test-api-key-123/tmdb/poster-default/movie-12345.jpg?fallback=true');
+    assert(
+      result ===
+        'https://api.ratingposterdb.com/test-api-key-123/tmdb/poster-default/movie-12345.jpg?fallback=true'
+    );
   });
 
   await runTest(SUITE, 'should generate Top Posters URL with TMDb ID', async () => {
@@ -66,7 +69,50 @@ export async function run() {
       tmdbId: 55555,
       type: 'series',
     });
-    assert(result === 'https://api.top-streaming.stream/test-api-key-123/tmdb/poster-default/series-55555.jpg?fallback=true');
+    assert(
+      result ===
+        'https://api.top-streaming.stream/test-api-key-123/tmdb/poster-default/series-55555.jpg?fallback=true'
+    );
+  });
+
+  await runTest(SUITE, 'should generate RPDB backdrop URL with IMDb ID', async () => {
+    const result = generateBackdropUrl({
+      apiKey: testApiKey,
+      service: PosterService.RPDB,
+      tmdbId: 12345,
+      type: 'movie',
+      imdbId: 'tt1234567',
+    });
+    assert(
+      result ===
+        'https://api.ratingposterdb.com/test-api-key-123/imdb/backdrop-default/tt1234567.jpg?fallback=true'
+    );
+  });
+
+  await runTest(SUITE, 'should generate RPDB backdrop URL with TMDb series ID', async () => {
+    const result = generateBackdropUrl({
+      apiKey: testApiKey,
+      service: PosterService.RPDB,
+      tmdbId: 54321,
+      type: 'series',
+    });
+    assert(
+      result ===
+        'https://api.ratingposterdb.com/test-api-key-123/tmdb/backdrop-default/series-54321.jpg?fallback=true'
+    );
+  });
+
+  await runTest(SUITE, 'should generate Top Posters backdrop URL with TMDb ID', async () => {
+    const result = generateBackdropUrl({
+      apiKey: testApiKey,
+      service: PosterService.TOP_POSTERS,
+      tmdbId: 99999,
+      type: 'movie',
+    });
+    assert(
+      result ===
+        'https://api.top-streaming.stream/test-api-key-123/tmdb/backdrop-default/movie-99999.jpg?fallback=true'
+    );
   });
 
   await runTest(SUITE, 'should validate poster config', async () => {

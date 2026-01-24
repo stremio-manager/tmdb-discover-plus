@@ -570,7 +570,7 @@ export async function getDetails(apiKey, tmdbId, type = 'movie') {
   const maybeOptions = arguments.length >= 4 ? arguments[3] : undefined;
   const languageParam = maybeOptions?.displayLanguage || maybeOptions?.language;
   return tmdbFetch(`/${mediaType}/${tmdbId}`, apiKey, {
-    append_to_response: 'external_ids,credits',
+    append_to_response: 'external_ids,credits,videos,release_dates,content_ratings',
     ...(languageParam ? { language: languageParam } : {}),
   });
 }
@@ -663,12 +663,12 @@ export async function getSeriesEpisodes(apiKey, tmdbId, details, options = {}) {
  * Convert TMDB details to a full Stremio Meta Object.
  * @param {Object} details - TMDB details object
  * @param {string} type - Content type ('movie' or 'series')
- * @param {string|null} imdbId - IMDb ID if available
+ * @param {string|null} requestedId - The ID originally requested by Stremio
  * @param {Object|null} posterOptions - Optional poster service config { apiKey, service }
  * @param {Array|null} videos - Optional array of Video objects for series episodes
  * @returns {Object} Stremio meta object
  */
-export function toStremioFullMeta(details, type, imdbId = null, posterOptions = null, videos = null) {
+export function toStremioFullMeta(details, type, imdbId = null, requestedId = null, posterOptions = null, videos = null) {
   if (!details) return {};
   const isMovie = type === 'movie';
   const title = isMovie ? details.title : details.name;
@@ -702,8 +702,71 @@ export function toStremioFullMeta(details, type, imdbId = null, posterOptions = 
     if (typeof first === 'number') runtimeMin = first;
   }
 
-  // Determine effective IMDb ID
   const effectiveImdbId = imdbId || details?.external_ids?.imdb_id || null;
+  const status = details.status || null;
+
+  // Age Rating / Certification
+  let certification = null;
+  if (isMovie && details.release_dates?.results) {
+    const usInfo = details.release_dates.results.find(r => r.iso_3166_1 === 'US');
+    if (usInfo?.release_dates?.length > 0) {
+      // Find optimal rating (theatrical preferred)
+      const rated = usInfo.release_dates.find(d => d.certification) || usInfo.release_dates[0];
+      if (rated?.certification) certification = rated.certification;
+    }
+  } else if (!isMovie && details.content_ratings?.results) {
+    const usInfo = details.content_ratings.results.find(r => r.iso_3166_1 === 'US');
+    if (usInfo?.rating) certification = usInfo.rating;
+  }
+
+  // Format Release Info (Year + Rating)
+  let releaseInfo = year;
+  if (certification) {
+      releaseInfo = releaseInfo ? `${releaseInfo} • ${certification}` : certification;
+  } else if (status) {
+      releaseInfo = releaseInfo ? `${releaseInfo} • ${status}` : status;
+  }
+
+  // Trailer
+  let trailer = null;
+  if (details.videos?.results?.length > 0) {
+    // Prefer official YouTube trailers
+    const trailerVideo = details.videos.results.find(v => 
+      v.site === 'YouTube' && v.type === 'Trailer'
+    ) || details.videos.results.find(v => v.site === 'YouTube');
+    
+    if (trailerVideo) {
+      trailer = `yt:${trailerVideo.key}`;
+    }
+  }
+
+  // Links
+  const links = [];
+  if (effectiveImdbId) {
+    links.push({
+      name: 'IMDb',
+      category: 'imdb',
+      url: `https://www.imdb.com/title/${effectiveImdbId}/`,
+    });
+  }
+  links.push({
+    name: 'TMDB',
+    category: 'tmdb',
+    url: `https://www.themoviedb.org/${type}/${details.id}`,
+  });
+  if (details.homepage) {
+     links.push({
+        name: 'Website',
+        category: 'website',
+        url: details.homepage,
+     });
+  }
+
+  /* behaviorHints */
+  const behaviorHints = {
+    defaultVideoId: isMovie ? effectiveImdbId || `tmdb:${details.id}` : undefined,
+    hasScheduledVideos: !isMovie && (status === 'Returning Series' || status === 'In Production'),
+  };
 
   // Generate poster URL (use poster service if configured, fallback to TMDB)
   let poster = details.poster_path ? `${TMDB_IMAGE_BASE}/w500${details.poster_path}` : null;
@@ -733,7 +796,7 @@ export function toStremioFullMeta(details, type, imdbId = null, posterOptions = 
       : null;
 
   const meta = {
-    id: effectiveImdbId || `tmdb:${details.id}`,
+    id: requestedId || effectiveImdbId || `tmdb:${details.id}`,
     tmdbId: details.id,
     imdbId: effectiveImdbId,
     type: type === 'series' ? 'series' : 'movie',
@@ -741,9 +804,10 @@ export function toStremioFullMeta(details, type, imdbId = null, posterOptions = 
     poster,
     posterShape: 'poster',
     background,
+    fanart: background, // Compatibility alias
     logo: logo ? `${TMDB_IMAGE_BASE}/w300${logo}` : undefined,
     description: details.overview || '',
-    releaseInfo: year,
+    releaseInfo,
     imdbRating: typeof details.vote_average === 'number' ? details.vote_average.toFixed(1) : null,
     genres,
     cast: cast.length > 0 ? cast : undefined,
@@ -752,6 +816,10 @@ export function toStremioFullMeta(details, type, imdbId = null, posterOptions = 
     language: details.original_language || undefined,
     country: Array.isArray(details.origin_country) ? details.origin_country.join(', ') : undefined,
     released: releaseDate ? new Date(releaseDate).toISOString() : undefined,
+    links: links.length > 0 ? links : undefined,
+    trailer: trailer || undefined,
+    behaviorHints,
+    status: status || undefined,
   };
 
   // Add videos (episodes) for series
@@ -845,6 +913,7 @@ export function toStremioMeta(item, type, imdbId = null, posterOptions = null) {
     poster,
     posterShape: 'poster',
     background,
+    fanart: background, // Compatibility alias
     description: item.overview || '',
     releaseInfo: year,
     imdbRating: item.vote_average ? item.vote_average.toFixed(1) : null,

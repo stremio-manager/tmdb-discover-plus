@@ -343,6 +343,29 @@ export async function run() {
     // Accept any valid title (Inception, Origen, etc.) due to potential localization
     assert(res.data.meta.name && res.data.meta.name.length > 0, 'Should return a valid title');
     assert(res.data.meta.id, 'Should have an id');
+    
+    // Verify enhanced metadata
+    if (res.data.meta.trailer) {
+        assert(res.data.meta.trailer.startsWith('yt:'), 'Trailer should be a YouTube ID (yt:)');
+    }
+    
+    if (res.data.meta.links) {
+        assertArray(res.data.meta.links, 1, 'Should have links');
+        const imdbLink = res.data.meta.links.find(l => l.category === 'imdb');
+        assert(imdbLink, 'Should have IMDb link');
+    }
+
+    if (res.data.meta.behaviorHints) {
+        assert(res.data.meta.behaviorHints.defaultVideoId, 'Should have defaultVideoId behavior hint');
+    }
+
+    // Check age rating formatting in releaseInfo
+    if (res.data.meta.releaseInfo && res.data.meta.releaseInfo.includes('•')) {
+        // e.g. "2010 • PG-13"
+        const parts = res.data.meta.releaseInfo.split('•');
+        assert(parts.length === 2, 'Release info should have year and rating');
+        assert(parts[1].trim().length > 0, 'Rating should not be empty');
+    }
   });
 
   await runTest(SUITE, 'Meta resolves TMDB ID (tmdb: prefix)', async () => {
