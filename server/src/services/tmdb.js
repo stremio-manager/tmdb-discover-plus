@@ -19,6 +19,8 @@ const httpsAgent = new https.Agent({
 const cache = new NodeCache({
   stdTTL: 3600, // 1 hour default TTL
   checkperiod: 600, // Check for expired keys every 10 min
+  maxKeys: 1000, // Limit cache to 1000 keys to prevent OOM
+  useClones: false, // Save memory by not cloning objects
 });
 
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
