@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BuyMeACoffeeButton } from './BuyMeACoffeeButton.jsx';
+import { KoFiButton } from './KoFiButton.jsx';
 import { api } from '../services/api.js';
 
 export function Header() {
@@ -35,7 +36,8 @@ export function Header() {
             </div>
           )}
 
-          <div className="header-actions">
+          <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <KoFiButton />
             <BuyMeACoffeeButton />
           </div>
         </div>
