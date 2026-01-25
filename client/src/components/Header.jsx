@@ -1,15 +1,8 @@
-import { useState, useEffect } from 'react';
 import { BuyMeACoffeeButton } from './BuyMeACoffeeButton.jsx';
 import { KoFiButton } from './KoFiButton.jsx';
-import { api } from '../services/api.js';
+import { Heart, Coffee } from 'lucide-react';
 
-export function Header() {
-  const [stats, setStats] = useState(null);
-
-  useEffect(() => {
-    api.getStats().then(setStats).catch(() => {});
-  }, []);
-
+export function Header({ stats }) {
   return (
     <header className="header">
       <div className="container">
@@ -36,9 +29,40 @@ export function Header() {
             </div>
           )}
 
-          <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <KoFiButton />
-            <BuyMeACoffeeButton />
+
+
+          <div className="header-actions">
+            {/* Desktop Buttons */}
+            <div className="desktop-actions">
+              <KoFiButton />
+              <BuyMeACoffeeButton />
+            </div>
+
+            {/* Mobile Icon Buttons */}
+            <div className="mobile-actions">
+              <a 
+                href="https://ko-fi.com/semicolumn" 
+                target="_blank" 
+                rel="noreferrer"
+                className="action-icon-btn kofi-btn"
+                aria-label="Support on Ko-fi"
+              >
+                <img 
+                  src="/Paypal.png" 
+                  alt="PayPal" 
+                  style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                />
+              </a>
+              <a 
+                href="https://buymeacoffee.com/semi.column" 
+                target="_blank" 
+                rel="noreferrer"
+                className="action-icon-btn bmc-btn"
+                aria-label="Buy me a coffee"
+              >
+                <Coffee size={20} />
+              </a>
+            </div>
           </div>
         </div>
       </div>

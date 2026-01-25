@@ -108,6 +108,19 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  position: relative; /* For absolute centering of stats */
+}
+
+/* Spacer for desktop layout balance if needed, or rely on flex-grow */
+.header-content > .header-actions {
+  margin-left: auto;
+}
+
+/* Actions Toolbar (Desktop default) */
+.actions-toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
 }
 
 .logo {
@@ -145,17 +158,20 @@
 }
 
 .header-stats {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin: 0 24px;
-  padding: 6px 16px;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: var(--radius-full);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  font-size: 13px;
-  color: var(--text-muted);
-  animation: fadeIn var(--transition-slow) ease;
+  gap: 16px;
+  padding: 8px 20px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 14px;
+  color: var(--text-secondary);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .stats-item {
@@ -185,6 +201,16 @@
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.desktop-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mobile-actions {
+  display: none;
 }
 
 .sponsor-button {
@@ -3429,36 +3455,122 @@ input[type='date'] {
   }
 }
 
-/* Mobile Header */
+/* Mobile "Slim App Bar" Header */
 @media (max-width: 768px) {
   .header {
-    padding: 12px 0;
+    padding: 0;
+    height: 60px;
+    background: rgba(15, 23, 42, 0.85); /* Darker, more solid background */
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  /* Remove hero glow effects */
+  .header::before {
+    display: none;
+  }
+
+  .header .container {
+    height: 100%;
+    max-width: none;
+    padding: 0 16px;
   }
 
   .header-content {
-    flex-direction: column;
+    flex-direction: row;
+    height: 100%;
+    align-items: center;
+    justify-content: space-between;
     gap: 12px;
-    text-align: center;
+    margin: 0;
+    max-width: none;
   }
 
   .logo {
-    flex-direction: column;
-    gap: 8px;
-    text-align: center;
+    flex-direction: row;
+    gap: 10px;
+    align-items: center;
   }
 
   .logo-image {
-    width: 64px;
-    height: 64px;
-    margin-left: 0;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    border-radius: 8px; /* Slightly softer corners */
+  }
+
+  .logo-image:hover {
+    transform: none;
   }
 
   .logo h1 {
-    font-size: 20px;
+    font-size: 18px;
+    background: none;
+    -webkit-text-fill-color: initial;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
   }
 
   .logo-subtitle {
-    font-size: 12px;
+    display: none; /* Hide subtitle to save vertical space */
+  }
+
+  /* Compact Stats */
+  .header-stats {
+    display: none; /* Hide stats on mobile to prioritize catalog content */
+  }
+
+  /* Mobile Actions */
+  .desktop-actions {
+    display: none;
+  }
+
+  .mobile-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .action-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .action-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+  }
+
+  .kofi-btn {
+    background: rgba(255, 255, 255, 0.9);
+  }
+
+  .bmc-btn {
+    color: #ffdd00;
+    background: rgba(255, 221, 0, 0.1);
+  }
+
+  .header-actions {
+    display: block; /* Ensure container is visible */
+    margin-top: 0;
+    width: auto;
+    margin-left: auto; /* Push actions to the right */
   }
 }
 
@@ -3469,28 +3581,55 @@ input[type='date'] {
   }
 }
 
-/* Mobile Top Actions Bar */
-@media (max-width: 768px) {
+/* Mobile Actions Layout (Top Bar) */
+@media (max-width: 1024px) {
+  /* Ensure parent allows wrapping/full width if needed, though we target toolbar directly */
+  
+  /* Target toolbar directly */
+  .actions-toolbar {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    width: 100%;
+    margin-top: 16px;
+    margin-left: 0 !important; /* Override auto margins */
+  }
+
+  /* Main container adjustment to allow wrapping */
   .main > .container > div:first-child {
     flex-direction: column;
-    gap: 16px;
-    text-align: center;
+    align-items: flex-start !important;
   }
 
-  .main > .container > div:first-child h2 {
-    font-size: 20px;
-  }
-
-  .main > .container > div:first-child > div:last-child {
-    flex-direction: column;
+  /* Config Dropdown -> Row 1, Col 1 */
+  .actions-toolbar > .config-dropdown {
     width: 100%;
+    margin: 0;
+    grid-column: 1 / 2;
   }
 
-  .main > .container > div:first-child > div:last-child .btn {
+  /* Save Wrapper -> Row 1, Col 2 */
+  .actions-toolbar > .save-button-wrapper {
+    width: 100%;
+    margin: 0;
+    grid-column: 2 / 3;
+  }
+  
+  .actions-toolbar > .save-button-wrapper .btn {
     width: 100%;
     justify-content: center;
   }
+
+  /* Change API Key -> Row 2, Full width */
+  .actions-toolbar > button:last-child {
+    grid-column: 1 / -1;
+    width: 100%;
+    justify-content: center;
+    margin-top: 0;
+  }
 }
+
+/* Mobile Main Content */
 
 /* Mobile Sidebar */
 @media (max-width: 768px) {
@@ -4146,6 +4285,7 @@ input[type='date'] {
   box-shadow: var(--shadow-lg);
   overflow: hidden;
   animation: dropdownFadeIn 0.15s ease;
+  text-align: left; /* Ensure items are left-aligned even if parent is centered */
 }
 
 .config-dropdown-header {
@@ -4166,9 +4306,12 @@ input[type='date'] {
 
 .config-dropdown-item {
   display: flex;
-  align-items: center;
+  align-items: stretch;
+  justify-content: space-between;
   border-bottom: 1px solid var(--border-color);
+  border-left: 3px solid transparent; /* Reserve space for active/delete states */
   position: relative;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .config-dropdown-item:last-child {
@@ -4176,30 +4319,40 @@ input[type='date'] {
 }
 
 .config-dropdown-item.active {
-  background: rgba(124, 58, 237, 0.08);
+  background: rgba(59, 130, 246, 0.05);
+  border-left: 3px solid var(--accent-primary);
+}
+
+/* Sophisticated backdrop and alert border for confirmation state */
+.config-dropdown-item:has(.config-dropdown-confirm-inline) {
+  background: rgba(239, 68, 68, 0.06) !important;
+  border-left-color: #ef4444 !important;
 }
 
 .config-dropdown-item-content {
   flex: 1;
-  padding: 12px 16px;
+  padding: 10px 12px 10px 16px; /* Reduced vertical padding */
   cursor: pointer;
   transition: background 0.15s ease;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px; /* Tighter gap */
 }
 
 .config-dropdown-item-content:hover {
-  background: var(--bg-hover);
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .config-dropdown-item.active .config-dropdown-item-content:hover {
-  background: rgba(124, 58, 237, 0.12);
+  background: rgba(59, 130, 246, 0.03);
 }
 
 .config-dropdown-item-name {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: 10px;
+  margin-bottom: 0; /* Removed margin to save height */
 }
 
 .config-dropdown-item-name .config-name {
@@ -4210,60 +4363,129 @@ input[type='date'] {
 
 .config-dropdown-item-badge {
   font-size: 10px;
-  padding: 2px 6px;
-  background: var(--accent-primary);
-  color: white;
-  border-radius: 4px;
+  padding: 2px 8px;
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border-radius: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.config-dropdown-item-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.stat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px; /* Slightly smaller font to save space */
   font-weight: 500;
-}
-
-.config-dropdown-item-meta {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.config-dropdown-delete {
-  padding: 8px;
-  margin-right: 8px;
-  color: var(--text-muted);
-  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 2px 8px; /* Compact padding */
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   transition: all 0.2s ease;
 }
 
-.config-dropdown-delete:hover {
-  color: var(--error);
-  background: rgba(248, 81, 73, 0.1);
+.stat-badge:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
 }
 
-.config-dropdown-delete.btn-danger-active {
-  color: var(--error);
-  background: rgba(248, 81, 73, 0.2);
+.stat-badge svg {
+  color: var(--accent-primary);
+  opacity: 0.8;
 }
 
-.config-dropdown-confirm-tooltip {
-  position: absolute;
-  right: 48px;
-  top: 50%;
-  transform: translateY(-50%);
-  padding: 4px 8px;
-  background: var(--error);
-  color: white;
+.empty-stats {
   font-size: 11px;
-  border-radius: 4px;
-  white-space: nowrap;
-  animation: fadeIn 0.15s ease;
+  color: var(--text-muted);
+  font-style: italic;
 }
 
-.config-dropdown-confirm-tooltip::after {
-  content: '';
-  position: absolute;
-  right: -4px;
-  top: 50%;
-  transform: translateY(-50%);
-  border-left: 4px solid var(--error);
-  border-top: 4px solid transparent;
-  border-bottom: 4px solid transparent;
+.config-dropdown-item-actions {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  flex-shrink: 0;
 }
+
+.config-dropdown-delete {
+  color: var(--text-muted);
+  opacity: 0.4;
+  padding: 8px !important;
+  border-radius: 50% !important;
+  transition: all 0.2s ease !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+.config-dropdown-item:hover .config-dropdown-delete {
+  opacity: 1;
+}
+
+.config-dropdown-delete:hover {
+  color: var(--error) !important;
+  background: rgba(239, 68, 68, 0.1) !important;
+  transform: scale(1.1);
+}
+
+/* Premium Inline Confirmation */
+.config-dropdown-confirm-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: slideInRight 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.confirm-btn-yes, .confirm-btn-no {
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s ease !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+.confirm-btn-yes {
+  background: #ef4444 !important;
+  color: white !important;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
+}
+
+.confirm-btn-yes:hover {
+  background: #dc2626 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+}
+
+.confirm-btn-no {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-secondary) !important;
+}
+
+.confirm-btn-no:hover {
+  background: rgba(255, 255, 255, 0.15) !important;
+  color: var(--text-primary) !important;
+}
+
+
 
 .config-dropdown-footer {
   padding: 8px;
@@ -4425,4 +4647,36 @@ input[type='date'] {
 .template-desc {
   font-size: 12px;
   color: var(--text-muted);
+}
+
+/* Mobile Stats Pill */
+.mobile-stats-pill {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .mobile-stats-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 12px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .mobile-stats-pill strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .mobile-stats-pill .divider {
+    color: rgba(255, 255, 255, 0.2);
+    font-size: 10px;
+  }
 }

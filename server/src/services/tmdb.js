@@ -19,7 +19,7 @@ const httpsAgent = new https.Agent({
 const cache = new NodeCache({
   stdTTL: 3600, // 1 hour default TTL
   checkperiod: 600, // Check for expired keys every 10 min
-  maxKeys: 1000, // Limit cache to 1000 keys to prevent OOM
+  maxKeys: 5000, // Increased limit to 5000 keys
   useClones: false, // Save memory by not cloning objects
 });
 
@@ -124,7 +124,14 @@ async function tmdbFetch(endpoint, apiKey, params = {}, retries = 3) {
       }
 
       const data = await response.json();
-      cache.set(cacheKey, data);
+      
+      try {
+        cache.set(cacheKey, data);
+      } catch (cacheErr) {
+        // If cache is full or errors, just log it and proceed. Don't crash the request.
+        log.warn('Failed to cache TMDB response', { key: cacheKey, error: cacheErr.message });
+      }
+
       return data;
     } catch (error) {
       lastError = error;
@@ -233,7 +240,13 @@ async function tmdbWebsiteFetchJson(endpoint, params = {}) {
   const text = await response.text();
   const trimmed = text.trim();
   const data = trimmed ? JSON.parse(trimmed) : null;
-  cache.set(cacheKey, data);
+  
+  try {
+    cache.set(cacheKey, data);
+  } catch (err) {
+    log.warn('Failed to cache TMDB website response', { key: cacheKey, error: err.message });
+  }
+  
   return data;
 }
 
@@ -555,7 +568,9 @@ export async function getExternalIds(apiKey, tmdbId, type = 'movie') {
 
   try {
     const data = await tmdbFetch(`/${mediaType}/${tmdbId}/external_ids`, apiKey);
-    cache.set(cacheKey, data, 86400); // Cache for 24 hours
+    try {
+      cache.set(cacheKey, data, 86400); // Cache for 24 hours
+    } catch (e) { /* ignore cache errors */ }
     return data;
   } catch (error) {
     return null;
@@ -596,7 +611,9 @@ export async function getSeasonDetails(apiKey, tmdbId, seasonNumber, options = {
 
   try {
     const data = await tmdbFetch(`/tv/${tmdbId}/season/${seasonNumber}`, apiKey, params);
-    cache.set(cacheKey, data, 86400); // Cache for 24 hours
+    try {
+      cache.set(cacheKey, data, 86400); // Cache for 24 hours
+    } catch (e) { /* ignore cache errors */ }
     return data;
   } catch (error) {
     log.warn('Failed to fetch season details', { tmdbId, seasonNumber, error: error.message });

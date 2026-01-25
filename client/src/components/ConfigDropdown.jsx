@@ -1,5 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Trash2, Loader, AlertTriangle, FolderOpen, Plus } from 'lucide-react';
+import {
+  ChevronDown,
+  Trash2,
+  Loader,
+  AlertTriangle,
+  FolderOpen,
+  Plus,
+  Film,
+  Tv,
+  X,
+} from 'lucide-react';
 import { useConfirmDelete } from '../hooks/useConfirmDelete';
 
 export function ConfigDropdown({
@@ -15,7 +25,12 @@ export function ConfigDropdown({
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
-  const { confirmId, deletingId, requestDelete, reset: resetDelete } = useConfirmDelete(onDeleteConfig);
+  const {
+    confirmId,
+    deletingId,
+    requestDelete,
+    reset: resetDelete,
+  } = useConfirmDelete(onDeleteConfig);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -36,15 +51,13 @@ export function ConfigDropdown({
     return `${count} catalog${count !== 1 ? 's' : ''}`;
   };
 
-  // Get detailed catalog breakdown (e.g., "2 movies, 1 series")
-  const getCatalogBreakdown = (catalogs) => {
-    if (!catalogs || catalogs.length === 0) return 'No catalogs';
-    const movieCount = catalogs.filter((c) => c.type === 'movie').length;
-    const seriesCount = catalogs.filter((c) => c.type === 'series').length;
-    const parts = [];
-    if (movieCount > 0) parts.push(`${movieCount} movie${movieCount > 1 ? 's' : ''}`);
-    if (seriesCount > 0) parts.push(`${seriesCount} series`);
-    return parts.join(', ') || 'No catalogs';
+  // Get detailed catalog breakdown as object
+  const getCatalogStats = (catalogs) => {
+    if (!catalogs || catalogs.length === 0) return { movies: 0, series: 0 };
+    return {
+      movies: catalogs.filter((c) => c.type === 'movie').length,
+      series: catalogs.filter((c) => c.type === 'series').length,
+    };
   };
 
   // Get friendly name for config (e.g., "Config 1", "Config 2")
@@ -138,6 +151,7 @@ export function ConfigDropdown({
                     }
                     setIsOpen(false);
                   }}
+                  style={{ opacity: confirmId === config.userId ? 0.4 : 1, pointerEvents: confirmId === config.userId ? 'none' : 'auto' }}
                 >
                   <div className="config-dropdown-item-name">
                     <span className="config-name">{getConfigName(config, index)}</span>
@@ -145,33 +159,67 @@ export function ConfigDropdown({
                       <span className="config-dropdown-item-badge">Current</span>
                     )}
                   </div>
-                  <div className="config-dropdown-item-meta">
-                    {getCatalogBreakdown(config.catalogs)}
+                  <div className="config-dropdown-item-stats">
+                    {(() => {
+                      const stats = getCatalogStats(config.catalogs);
+                      if (stats.movies === 0 && stats.series === 0) {
+                        return <span className="empty-stats">Empty</span>;
+                      }
+                      return (
+                        <>
+                          {stats.movies > 0 && (
+                            <span className="stat-badge">
+                              <Film size={12} /> {stats.movies}
+                            </span>
+                          )}
+                          {stats.series > 0 && (
+                            <span className="stat-badge">
+                              <Tv size={12} /> {stats.series}
+                            </span>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
 
-                <button
-                  className={`btn btn-icon config-dropdown-delete ${confirmId === config.userId ? 'btn-danger-active' : ''}`}
-                  onClick={(e) => requestDelete(config.userId, e)}
-                  disabled={deletingId === config.userId}
-                  title={
-                    confirmId === config.userId
-                      ? 'Click again to confirm delete'
-                      : 'Delete configuration'
-                  }
-                >
-                  {deletingId === config.userId ? (
-                    <Loader size={16} className="animate-spin" />
-                  ) : confirmId === config.userId ? (
-                    <AlertTriangle size={16} />
+                <div className="config-dropdown-item-actions">
+                  {confirmId === config.userId ? (
+                    <div className="config-dropdown-confirm-inline">
+                      <button
+                        className="btn btn-icon confirm-btn-yes"
+                        onClick={(e) => requestDelete(config.userId, e)}
+                        disabled={deletingId === config.userId}
+                        title="Confirm Delete"
+                      >
+                        {deletingId === config.userId ? (
+                          <Loader size={14} className="animate-spin" />
+                        ) : (
+                          <Trash2 size={14} />
+                        )}
+                      </button>
+                      <button
+                        className="btn btn-icon confirm-btn-no"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          resetDelete();
+                        }}
+                        title="Cancel"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
                   ) : (
-                    <Trash2 size={16} />
+                    <button
+                      className="btn btn-icon config-dropdown-delete"
+                      onClick={(e) => requestDelete(config.userId, e)}
+                      disabled={deletingId === config.userId}
+                      title="Delete configuration"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   )}
-                </button>
-
-                {confirmId === config.userId && (
-                  <div className="config-dropdown-confirm-tooltip">Click again to confirm</div>
-                )}
+                </div>
               </div>
             ))}
           </div>

@@ -7,7 +7,9 @@ import { NewCatalogModal } from './components/NewCatalogModal';
 import { ConfigMismatchModal } from './components/ConfigMismatchModal';
 import { ToastContainer } from './components/Toast';
 import { ConfigDropdown } from './components/ConfigDropdown';
+import { useState, useEffect } from 'react';
 import { useAppController } from './hooks/useAppController';
+import { api } from './services/api';
 import { Download, Settings, Loader } from 'lucide-react';
 
 import './styles/globals.css';
@@ -33,11 +35,19 @@ function App() {
     configsLoading,
   } = state;
 
+  // Lifted Stats State
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    // Fetch stats once for the whole app
+    api.getStats().then(setStats).catch(() => {});
+  }, []);
+
   // Show loading until auth check completes and page is ready
   if (pageLoading || !config.authChecked) {
     return (
       <div className="app">
-        <Header />
+        <Header stats={stats} />
         <main className="main">
           <div className="loading" style={{ minHeight: '60vh' }}>
             <div className="spinner" />
@@ -51,7 +61,7 @@ function App() {
   if (isSetup) {
     return (
       <div className="app">
-        <Header />
+        <Header stats={stats} />
         <ApiKeySetup
           onLogin={(userId, configs) => {
             state.setWantsToChangeKey(false);
@@ -81,7 +91,7 @@ function App() {
 
   return (
     <div className="app">
-      <Header userId={config.userId} />
+      <Header userId={config.userId} stats={stats} />
 
       <main className="main">
         <div className="container">
@@ -99,8 +109,17 @@ function App() {
               <p className="text-secondary">
                 Create and customize your Stremio catalogs with TMDB filters
               </p>
+              
+              {/* Mobile Stats Pill */}
+              {stats && (
+                <div className="mobile-stats-pill">
+                  <span><strong>{stats.totalUsers.toLocaleString()}</strong> Users</span>
+                  <span className="divider">•</span>
+                  <span><strong>{stats.totalCatalogs.toLocaleString()}</strong> Catalogs</span>
+                </div>
+              )}
             </div>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <div className="actions-toolbar">
               {/* Config Dropdown */}
               {userConfigs.length > 0 && (
                 <ConfigDropdown
@@ -114,17 +133,7 @@ function App() {
                   onCreateNew={actions.handleCreateNewConfig}
                 />
               )}
-              <button
-                className="btn btn-secondary"
-                onClick={() => {
-                  config.logout(); // Clear session tokens
-                  state.setWantsToChangeKey(true);
-                  state.setIsSetup(true);
-                }}
-              >
-                <Settings size={18} />
-                Change API Key
-              </button>
+              
               {config.catalogs.length > 0 && (
                 <div className="save-button-wrapper">
                   {config.isDirty && <span className="unsaved-indicator" title="Unsaved changes" />}
@@ -142,6 +151,18 @@ function App() {
                   </button>
                 </div>
               )}
+
+              <button
+                className="btn btn-secondary"
+                onClick={() => {
+                  config.logout(); // Clear session tokens
+                  state.setWantsToChangeKey(true);
+                  state.setIsSetup(true);
+                }}
+              >
+                <Settings size={18} />
+                Change API Key
+              </button>
             </div>
           </div>
 
