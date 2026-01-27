@@ -276,6 +276,13 @@ async function handleCatalogRequest(userId, type, catalogId, extra, res) {
 
     const allItems = result?.results || [];
 
+    // Best-effort enrichment: Fetch IMDb IDs for consistent watch history
+    try {
+      await tmdb.enrichItemsWithImdbIds(apiKey, allItems, type);
+    } catch (e) {
+      log.warn('IMDb enrichment failed (continuing with TMDB IDs)', { error: e.message });
+    }
+
     const metas = allItems.map((item) => {
       // Direct mapping with optional poster service integration
       return tmdb.toStremioMeta(item, type, null, posterOptions);

@@ -583,12 +583,36 @@ export async function getExternalIds(apiKey, tmdbId, type = 'movie') {
   try {
     const data = await tmdbFetch(`/${mediaType}/${tmdbId}/external_ids`, apiKey);
     try {
-      await cache.set(cacheKey, data, 86400); // Cache for 24 hours
+      await cache.set(cacheKey, data, 604800); // Cache for 7 days
     } catch (e) { /* ignore cache errors */ }
     return data;
   } catch (error) {
     return null;
   }
+}
+
+/**
+ * Enrich a list of TMDB items with their IMDb IDs.
+ * Use concurrency (Promise.all) to fetch efficiently.
+ * Relies on getExternalIds which handles caching.
+ */
+export async function enrichItemsWithImdbIds(apiKey, items, type = 'movie') {
+  if (!items || !Array.isArray(items) || items.length === 0) return items;
+
+  // Process in parallel
+  // This might fire up to 20 requests at once. 
+  // Trusted TMDB keys usually handle this fine.
+  await Promise.all(items.map(async (item) => {
+    // If already has known ID, skip
+    if (item.imdb_id) return;
+
+    const ids = await getExternalIds(apiKey, item.id, type);
+    if (ids?.imdb_id) {
+      item.imdb_id = ids.imdb_id;
+    }
+  }));
+
+  return items;
 }
 
 /**
@@ -821,16 +845,12 @@ export async function toStremioFullMeta(details, type, imdbId = null, requestedI
   let actualImdbRating = null;
   if (effectiveImdbId && rpdbKey) {
       try {
-          // We intentionally don't await this to slow down the request? 
-          // Actually, for meta details, we probably WANT to await it so the UI shows the right number.
-          // Since it's cached, it should be fast after first hit.
           const realRating = await getRpdbRating(rpdbKey, effectiveImdbId);
           if (realRating && realRating !== 'N/A') {
               displayRating = realRating;
               actualImdbRating = realRating;
           }
       } catch (e) {
-          // Ignore
       }
   }
 
@@ -1067,9 +1087,9 @@ export function toStremioMeta(item, type, imdbId = null, posterOptions = null) {
   }
 
   return {
-    id: imdbId || `tmdb:${item.id}`,
+    id: imdbId || item.imdb_id || `tmdb:${item.id}`,
     tmdbId: item.id,
-    imdbId: imdbId || null,
+    imdbId: imdbId || item.imdb_id || null,
     type: type === 'series' ? 'series' : 'movie',
     name: title,
     poster,
