@@ -103,6 +103,8 @@ const userConfigSchema = new mongoose.Schema({
     },
     // Encrypted API key for the selected poster service
     posterApiKeyEncrypted: { type: String, required: false },
+    // Option to disable search catalogs
+    disableSearch: { type: Boolean, default: false },
   },
   // Timestamps
   createdAt: { type: Date, default: Date.now },
