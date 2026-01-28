@@ -24,6 +24,7 @@ const catalogSchema = new mongoose.Schema(
       language: String,
       displayLanguage: String,
       originCountry: String,
+      region: String, // Release region (e.g. for release dates)
       includeAdult: { type: Boolean, default: false },
       discoverOnly: { type: Boolean, default: false },
       randomize: { type: Boolean, default: false },

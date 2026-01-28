@@ -404,7 +404,11 @@ export async function discover(apiKey, options = {}) {
   if (language) params.with_original_language = language;
 
   // Display language (localize titles/overviews where available)
-  if (displayLanguage) params.language = displayLanguage;
+  if (displayLanguage) {
+    params.language = displayLanguage;
+    // Also request localized images, fallback to null (no text)
+    params.include_image_language = `${displayLanguage},null`;
+  }
 
   // Origin country
   // Origin country
