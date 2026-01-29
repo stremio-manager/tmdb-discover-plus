@@ -1038,8 +1038,10 @@ export async function toStremioFullMeta(
       ? details.images.logos.find((l) => l?.file_path)?.file_path
       : null;
 
+  const responseId = requestedId || `tmdb:${details.id}`;
+
   const meta = {
-    id: `tmdb:${details.id}`,
+    id: responseId,
     tmdbId: details.id,
     imdbId: effectiveImdbId,
     imdb_id: effectiveImdbId,
