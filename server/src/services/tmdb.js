@@ -649,12 +649,12 @@ export async function getDetails(apiKey, tmdbId, type = 'movie') {
   // eslint-disable-next-line prefer-rest-params
   const maybeOptions = arguments.length >= 4 ? arguments[3] : undefined;
   const languageParam = maybeOptions?.displayLanguage || maybeOptions?.language;
-  
+
   // Build params for the request
   const params = {
     append_to_response: 'external_ids,credits,videos,release_dates,content_ratings,images',
   };
-  
+
   if (languageParam) {
     params.language = languageParam;
     // IMPORTANT: include_image_language ensures we get logos even when non-English language is selected
@@ -664,7 +664,7 @@ export async function getDetails(apiKey, tmdbId, type = 'movie') {
     // Default to English logos if no language specified
     params.include_image_language = 'en,null';
   }
-  
+
   return tmdbFetch(`/${mediaType}/${tmdbId}`, apiKey, params);
 }
 
@@ -1059,11 +1059,13 @@ export async function toStremioFullMeta(
     year: year || undefined,
     releaseInfo,
     // Use actual IMDB rating from RPDB if available, fallback to TMDB vote_average
-    imdbRating: actualImdbRating || (typeof details.vote_average === 'number' ? details.vote_average.toFixed(1) : null),
+    imdbRating:
+      actualImdbRating ||
+      (typeof details.vote_average === 'number' ? details.vote_average.toFixed(1) : null),
     genres,
     cast: cast.length > 0 ? cast : undefined,
-    director: directors.length > 0 ? directors : undefined,
-    writer: writerNames.length > 0 ? writerNames : undefined,
+    director: directorString || undefined,
+    writer: writerString || undefined,
     runtime: formatRuntime(runtimeMin),
     language: details.original_language || undefined,
     country: Array.isArray(details.origin_country) ? details.origin_country.join(', ') : undefined,

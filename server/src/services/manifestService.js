@@ -33,8 +33,6 @@ export function buildManifest(userConfig, baseUrl) {
       extra: [{ name: 'skip' }],
     }));
 
-  // Add dedicated search catalogs (hidden from board, used for global search)
-  // Only if search is not disabled in preferences
   if (userConfig?.preferences?.disableSearch !== true) {
     catalogs.push({
       id: 'tmdb-search-movie',
@@ -56,15 +54,13 @@ export function buildManifest(userConfig, baseUrl) {
     description: ADDON_DESCRIPTION,
     version: ADDON_VERSION,
     logo: `${baseUrl}/logo.png`,
-    // Top-level idPrefixes (required for Stremio Web compatibility)
-    // This addon owns tmdb: prefixed IDs for metadata
-    idPrefixes: ['tmdb:'],
+    idPrefixes: ['tmdb:', 'tt'],
     resources: [
       'catalog',
       {
         name: 'meta',
         types: ['movie', 'series'],
-        idPrefixes: ['tmdb:'],
+        idPrefixes: ['tmdb:', 'tt'],
       },
     ],
     types: ['movie', 'series'],
