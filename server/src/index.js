@@ -50,8 +50,8 @@ app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 app.use(express.json());
 
-// Global generic rate limit for all API routes if not otherwise specified
-app.use('/api', apiRateLimit);
+// Global generic rate limit for all routes
+app.use(apiRateLimit);
 
 const clientDistPath = path.join(__dirname, '../../client/dist');
 

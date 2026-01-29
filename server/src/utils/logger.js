@@ -17,27 +17,47 @@ const LOG_LEVELS = {
 const currentLevel = LOG_LEVELS[process.env.LOG_LEVEL?.toLowerCase()] ?? LOG_LEVELS.info;
 const useJson = process.env.LOG_FORMAT === 'json';
 
-function redactSecretsInString(str) {
-  if (typeof str !== 'string') return str;
-  // Redact common credential query params (TMDB uses api_key, others often use apikey/key/token)
-  return str
-    .replace(/([?&]api_key=)[^&\s]+/gi, '$1[REDACTED]')
-    .replace(/([?&]apikey=)[^&\s]+/gi, '$1[REDACTED]')
-    .replace(/([?&]token=)[^&\s]+/gi, '$1[REDACTED]')
-    .replace(/([?&]key=)[^&\s]+/gi, '$1[REDACTED]');
-}
+const SENSITIVE_KEYS = [
+  'api_key', 'apikey', 'tmdbapikey', 'password', 'token', 'secret',
+  'auth', 'authorization', 'bearer', 'key', 'credential',
+  'pass', 'email'
+];
 
-function sanitizeAny(value) {
+function sanitizeValue(value, key = '') {
   if (value === null || value === undefined) return value;
-  if (typeof value === 'string') return redactSecretsInString(value);
-  if (Array.isArray(value)) return value.map(sanitizeAny);
-  if (typeof value !== 'object') return value;
-
-  const out = {};
-  for (const [k, v] of Object.entries(value)) {
-    out[k] = sanitizeAny(v);
+  
+  const lowerKey = String(key).toLowerCase();
+  if (SENSITIVE_KEYS.some(sk => lowerKey.includes(sk))) {
+    return '[REDACTED]';
   }
-  return out;
+
+  if (typeof value === 'string') {
+    return value
+      .replace(/([?&](?:api_key|apikey|token|key|password|id)=)[^&\s/]+/gi, '$1[REDACTED]')
+      .replace(/(Bearer\s+)[a-zA-Z0-9._-]+/gi, '$1[REDACTED]')
+      .replace(/(Basic\s+)[a-zA-Z0-9._-]+/gi, '$1[REDACTED]');
+  }
+
+  if (value instanceof Error) {
+    return {
+      message: value.message,
+      stack: '[REDACTED]'
+    };
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(item => sanitizeValue(item));
+  }
+
+  if (typeof value === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = sanitizeValue(v, k);
+    }
+    return out;
+  }
+
+  return value;
 }
 
 /**
@@ -52,7 +72,7 @@ function formatMessage(level, context, message, data = null) {
   const timestamp = new Date().toISOString();
 
   if (useJson) {
-    const safeData = data ? sanitizeLogData(data) : null;
+    const safeData = data ? sanitizeValue(data) : null;
     return JSON.stringify({
       timestamp,
       level,
@@ -65,31 +85,19 @@ function formatMessage(level, context, message, data = null) {
   const prefix = `[${timestamp}] [${level.toUpperCase()}] [${context}]`;
   if (data) {
     // In dev mode, format data nicely but avoid logging sensitive info
-    const safeData = sanitizeLogData(data);
+    const safeData = sanitizeValue(data);
     return `${prefix} ${message} ${JSON.stringify(safeData)}`;
   }
   return `${prefix} ${message}`;
 }
 
 /**
- * Remove sensitive fields from log data
+ * Remove sensitive fields from log data (Legacy wrapper)
  * @param {Object} data - Data to sanitize
  * @returns {Object} Sanitized data
  */
 function sanitizeLogData(data) {
-  if (!data || typeof data !== 'object') return data;
-
-  const sensitiveKeys = ['tmdbApiKey', 'apiKey', 'password', 'token', 'secret'];
-  const sanitized = { ...data };
-
-  for (const key of sensitiveKeys) {
-    if (key in sanitized) {
-      sanitized[key] = '[REDACTED]';
-    }
-  }
-
-  // Also redact secrets that might appear inside string values (e.g., node-fetch error URLs).
-  return sanitizeAny(sanitized);
+  return sanitizeValue(data);
 }
 
 /**
