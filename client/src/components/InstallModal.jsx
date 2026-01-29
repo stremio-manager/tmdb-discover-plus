@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { X, Copy, Check, ExternalLink, Download } from 'lucide-react';
 import { logger } from '../utils/logger';
 
-export function InstallModal({ isOpen, onClose, installUrl }) {
+export function InstallModal({ isOpen, onClose, installUrl, stremioUrl }) {
   const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;
@@ -18,9 +18,13 @@ export function InstallModal({ isOpen, onClose, installUrl }) {
   };
 
   const handleInstall = () => {
+    if (stremioUrl) {
+      window.location.href = stremioUrl;
+      return;
+    }
     const manifestUrl = installUrl;
-    const stremioWebInstallUrl = `https://web.stremio.com/#/addons?addon=${encodeURIComponent(manifestUrl)}`;
-    window.open(stremioWebInstallUrl, '_blank', 'noopener,noreferrer');
+    const stremioProtocolUrl = manifestUrl.replace(/^https?:\/\//, 'stremio://');
+    window.location.href = stremioProtocolUrl;
   };
 
   const manifestUrl = installUrl;

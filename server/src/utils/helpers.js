@@ -15,14 +15,6 @@ export function getBaseUrl(req) {
   const protocol = req.get('x-forwarded-proto') || req.protocol || 'http';
   let host = req.get('x-forwarded-host') || req.get('host') || 'localhost';
 
-  const beamupDomain = process.env.BEAMUP_DOMAIN || 'baby-beamup.club';
-  const appName = process.env.BEAMUP_APP_NAME || 'tmdb-discover-plus';
-
-  // Beamup/Dokku sometimes sends partial hostnames; append domain if needed
-  if (host.includes(appName) && !host.includes(beamupDomain)) {
-    host = `${host}.${beamupDomain}`;
-  }
-
   return `${protocol}://${host}`;
 }
 

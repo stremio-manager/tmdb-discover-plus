@@ -17,7 +17,7 @@
   "idPrefixes": [
     "tmdb-"
   ],
-  "logo": "https://84f50d1c22e7-tmdb-discover-plus.baby-beamup.club/logo.png",
+  "logo": "/logo.png",
   "behaviorHints": {
     "configurable": true
   }
