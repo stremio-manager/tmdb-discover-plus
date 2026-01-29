@@ -59,9 +59,7 @@ log.info('Environment status', {
   port: PORT,
   nodeEnv: process.env.NODE_ENV || 'undefined',
   hasEncryptionKey: Boolean(process.env.ENCRYPTION_KEY),
-  encryptionKeyLen: process.env.ENCRYPTION_KEY ? String(process.env.ENCRYPTION_KEY).length : 0,
   hasJwtSecret: Boolean(process.env.JWT_SECRET),
-  jwtSecretLen: process.env.JWT_SECRET ? String(process.env.JWT_SECRET).length : 0,
 });
 
 log.info('Client dist status', {

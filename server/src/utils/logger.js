@@ -68,11 +68,27 @@ function sanitizeValue(value, key = '') {
  * @param {Object} data - Additional data
  * @returns {string} Formatted message
  */
-function formatMessage(level, context, message, data = null) {
+const output = (level, formatted) => {
+  const message = String(formatted);
+  if (level === 'error') {
+     process.stderr.write(message + '\n');
+  } else {
+     process.stdout.write(message + '\n');
+  }
+};
+
+/**
+ * Format log message
+ * @param {string} level - Log level
+ * @param {string} context - Context/module name
+ * @param {string} message - Log message
+ * @param {Object} safeData - Sanity-cleared data
+ * @returns {string} Formatted message
+ */
+function formatMessage(level, context, message, safeData = null) {
   const timestamp = new Date().toISOString();
 
   if (useJson) {
-    const safeData = data ? sanitizeValue(data) : null;
     return JSON.stringify({
       timestamp,
       level,
@@ -83,21 +99,10 @@ function formatMessage(level, context, message, data = null) {
   }
 
   const prefix = `[${timestamp}] [${level.toUpperCase()}] [${context}]`;
-  if (data) {
-    // In dev mode, format data nicely but avoid logging sensitive info
-    const safeData = sanitizeValue(data);
+  if (safeData) {
     return `${prefix} ${message} ${JSON.stringify(safeData)}`;
   }
   return `${prefix} ${message}`;
-}
-
-/**
- * Remove sensitive fields from log data (Legacy wrapper)
- * @param {Object} data - Data to sanitize
- * @returns {Object} Sanitized data
- */
-function sanitizeLogData(data) {
-  return sanitizeValue(data);
 }
 
 /**
@@ -109,25 +114,29 @@ export function createLogger(context) {
   return {
     debug(message, data = null) {
       if (currentLevel <= LOG_LEVELS.debug) {
-        console.log(formatMessage('debug', context, message, data));
+        const safeData = data ? sanitizeValue(data) : null;
+        output('debug', formatMessage('debug', context, message, safeData));
       }
     },
 
     info(message, data = null) {
       if (currentLevel <= LOG_LEVELS.info) {
-        console.log(formatMessage('info', context, message, data));
+        const safeData = data ? sanitizeValue(data) : null;
+        output('info', formatMessage('info', context, message, safeData));
       }
     },
 
     warn(message, data = null) {
       if (currentLevel <= LOG_LEVELS.warn) {
-        console.warn(formatMessage('warn', context, message, data));
+        const safeData = data ? sanitizeValue(data) : null;
+        output('warn', formatMessage('warn', context, message, safeData));
       }
     },
 
     error(message, data = null) {
       if (currentLevel <= LOG_LEVELS.error) {
-        console.error(formatMessage('error', context, message, data));
+        const safeData = data ? sanitizeValue(data) : null;
+        output('error', formatMessage('error', context, message, safeData));
       }
     },
   };
