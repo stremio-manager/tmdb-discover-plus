@@ -57,7 +57,7 @@
     "prettier": "^3.8.0"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,json,css,md}": "prettier --write",
-    "client/**/*.{js,jsx}": "eslint --fix"
+    "*.{js,jsx,ts,tsx,json,css,md}": "npx prettier --write",
+    "client/**/*.{js,jsx}": "npx eslint --fix --config client/eslint.config.js"
   }
 }

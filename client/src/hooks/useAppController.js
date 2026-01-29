@@ -153,6 +153,7 @@ export function useAppController() {
           setPageLoading(false);
         }
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- config.loadConfig is stable via useCallback
   }, [
     urlUserId,
     config.authChecked,
