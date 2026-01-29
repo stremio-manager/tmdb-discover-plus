@@ -26,14 +26,25 @@ function pickPreferredMetaLanguage(config) {
   const pref = config?.preferences?.defaultLanguage;
   if (pref) return pref;
 
-  const enabled = (config?.catalogs || []).filter((c) => c?.enabled !== false);
+  // Only consider user catalogs that have a displayLanguage set
+  const enabled = (config?.catalogs || []).filter(
+    (c) => c?.enabled !== false && c?.filters?.displayLanguage
+  );
   const langs = enabled
-    .map((c) => c?.filters?.displayLanguage)
+    .map((c) => c.filters.displayLanguage)
     .filter(Boolean)
     .map(String);
 
   const uniq = Array.from(new Set(langs));
+  // If there's exactly one unique language across all catalogs with displayLanguage, use it
   if (uniq.length === 1) return uniq[0];
+  // If there are multiple languages or none, pick the most common one or fall back to 'en'
+  if (uniq.length > 1) {
+    const count = {};
+    langs.forEach((l) => (count[l] = (count[l] || 0) + 1));
+    const sorted = Object.entries(count).sort((a, b) => b[1] - a[1]);
+    return sorted[0][0]; // Most common language
+  }
   return 'en';
 }
 
