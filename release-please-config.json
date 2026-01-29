@@ -4,7 +4,8 @@
       "release-type": "node",
       "extra-files": [
         "client/package.json",
-        "server/package.json"
+        "server/package.json",
+        "client/public/manifest.json"
       ],
       "include-component-in-tag": false
     }
