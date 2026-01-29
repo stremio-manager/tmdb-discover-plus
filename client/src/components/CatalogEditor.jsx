@@ -1,39 +1,35 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Eye,
-  RefreshCw,
-  Star,
-  Check,
-  Loader,
-  ImageOff,
-  Film,
-  Tv,
-  ChevronDown,
-  ChevronUp,
-  Calendar,
-  Play,
-  Users,
-  Settings,
   Download as ArrowDownTrayIcon,
   Upload as ArrowUpTrayIcon,
-  Sparkles,
-  X,
+  Calendar,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  Film,
+  Loader,
+  Play,
+  Settings,
   Shuffle,
-  Zap,
+  Sparkles,
+  Tv,
+  Users,
+  X,
+  Zap
 } from 'lucide-react';
-import { SearchableSelect } from './SearchableSelect';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MultiSelect } from './MultiSelect';
-import { SearchInput } from './SearchInput';
 import { RangeSlider, SingleSlider } from './RangeSlider';
+import { SearchableSelect } from './SearchableSelect';
 import { LabelWithTooltip } from './Tooltip';
+import { CatalogPreview } from './catalog/CatalogPreview';
 import { FilterSection } from './catalog/FilterSection';
 import { GenreSelector } from './catalog/GenreSelector';
-import { StreamFilters } from './catalog/StreamFilters';
 import { PeopleFilters } from './catalog/PeopleFilters';
-import { CatalogPreview } from './catalog/CatalogPreview';
+import { StreamFilters } from './catalog/StreamFilters';
 
-import { useResolvedFilters } from '../hooks/useResolvedFilters';
 import { useCatalogSync } from '../hooks/useCatalogSync';
+import { useResolvedFilters } from '../hooks/useResolvedFilters';
 import { useWatchProviders } from '../hooks/useWatchProviders';
 
 const DEFAULT_CATALOG = {
@@ -180,30 +176,28 @@ export function CatalogEditor({
       region: localCatalog?.filters?.watchRegion,
       getWatchProviders
   });
-  const mergedLocalCatalog = {
+  const peopleIds = selectedPeople.map((p) => p.id).join(',') || undefined;
+  const companiesIds = selectedCompanies.map((c) => c.id).join(',') || undefined;
+  const keywordsIds = selectedKeywords.map((k) => k.id).join(',') || undefined;
+  const excludeKeywordsIds = excludeKeywords.map((k) => k.id).join(',') || undefined;
+  const excludeCompaniesIds = excludeCompanies.map((c) => c.id).join(',') || undefined;
+
+  const mergedLocalCatalog = useMemo(() => ({
       ...localCatalog,
       filters: {
           ...localCatalog.filters,
-          withPeople: selectedPeople.map((p) => p.id).join(',') || undefined,
-          withCompanies: selectedCompanies.map((c) => c.id).join(',') || undefined,
-          withKeywords: selectedKeywords.map((k) => k.id).join(',') || undefined,
-          excludeKeywords: excludeKeywords.map((k) => k.id).join(',') || undefined,
-          excludeCompanies: excludeCompanies.map((c) => c.id).join(',') || undefined,
+          withPeople: peopleIds,
+          withCompanies: companiesIds,
+          withKeywords: keywordsIds,
+          excludeKeywords: excludeKeywordsIds,
+          excludeCompanies: excludeCompaniesIds,
       }
-  };
+  }), [localCatalog, peopleIds, companiesIds, keywordsIds, excludeKeywordsIds, excludeCompaniesIds]);
 
   useCatalogSync({
       localCatalog: mergedLocalCatalog,
       catalog,
       onUpdate,
-      dependencies: [
-        selectedPeople, 
-        selectedCompanies, 
-        selectedKeywords, 
-        excludeKeywords, 
-        excludeCompanies,
-        selectedNetworks
-      ]
   });
 
   useEffect(() => {
@@ -215,7 +209,12 @@ export function CatalogEditor({
       (tvNetworks || []).forEach((n) => {
         if (n && n.id != null) {
           const key = String(n.id);
-          if (!byId.has(key)) byId.set(key, n);
+          const existing = byId.get(key);
+          const existingHasProperName = existing && existing.name && existing.name !== key;
+          const newHasProperName = n.name && n.name !== key;
+          if (!existing || (!existingHasProperName && newHasProperName)) {
+            byId.set(key, n);
+          }
         }
       });
       return Array.from(byId.values());
@@ -238,7 +237,12 @@ export function CatalogEditor({
           results.forEach((n) => {
             if (n && n.id != null) {
               const key = String(n.id);
-              if (!byId.has(key)) byId.set(key, n);
+              const existing = byId.get(key);
+              const existingHasProperName = existing && existing.name && existing.name !== key;
+              const newHasProperName = n.name && n.name !== key;
+              if (!existing || (!existingHasProperName && newHasProperName) || newHasProperName) {
+                byId.set(key, n);
+              }
             }
           });
           return Array.from(byId.values());
@@ -284,18 +288,23 @@ export function CatalogEditor({
     });
   }, []);
 
-  useEffect(() => {
-    if (catalog) {
-      setLocalCatalog(catalog);
+  const catalogIdForSync = catalog?._id;
+  const catalogRef = useRef(catalog);
+  catalogRef.current = catalog;
 
-      if (catalog.filters?.datePreset) {
-        const presetMatch = DATE_PRESETS.find((p) => p.value === catalog.filters.datePreset);
+  useEffect(() => {
+    const currentCatalog = catalogRef.current;
+    if (currentCatalog) {
+      setLocalCatalog(currentCatalog);
+
+      if (currentCatalog.filters?.datePreset) {
+        const presetMatch = DATE_PRESETS.find((p) => p.value === currentCatalog.filters.datePreset);
         setSelectedDatePreset(presetMatch ? presetMatch.label : null);
       } else {
         setSelectedDatePreset(null);
       }
       const prevId = prevCatalogIdRef.current;
-      const newId = catalog._id || null;
+      const newId = currentCatalog._id || null;
       if (prevId !== newId) {
         setPreviewData(null);
       }
@@ -307,18 +316,16 @@ export function CatalogEditor({
       prevCatalogIdRef.current = null;
     }
   }, [
-    catalog,
+    catalogIdForSync,
   ]);
 
 
   const toggleSection = (section) => {
     setExpandedSections((prev) => {
       const isCurrentlyExpanded = prev[section];
-      // If closing, just close it. If opening, close all others first.
       if (isCurrentlyExpanded) {
         return { ...prev, [section]: false };
       } else {
-        // Collapse all sections, then open just this one
         const allClosed = Object.keys(prev).reduce((acc, key) => {
           acc[key] = false;
           return acc;
@@ -355,7 +362,6 @@ export function CatalogEditor({
             ...prev.filters,
             genres: [],
             excludeGenres: [],
-            // Reset sortBy to default when changing type as options differ
             sortBy: 'popularity.desc',
           },
         };

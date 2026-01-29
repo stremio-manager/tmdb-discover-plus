@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { X } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { MultiSelect } from '../MultiSelect';
 import { SearchableSelect } from '../SearchableSelect';
 import { LabelWithTooltip } from '../Tooltip';
@@ -17,7 +17,7 @@ export function StreamFilters({
 }) {
   const [providerSearch, setProviderSearch] = useState('');
 
-  const tvNetworkOptions = tvNetworks || [];
+  const tvNetworkOptions = useMemo(() => tvNetworks || [], [tvNetworks]);
 
   const handleProviderToggle = (providerId) => {
     const current = filters.watchProviders || [];
@@ -31,6 +31,35 @@ export function StreamFilters({
     onFiltersChange('watchProviders', next);
   };
 
+  const networkOptions = useMemo(() => {
+    const byId = new Map();
+    
+    tvNetworkOptions.forEach(n => {
+      if (n && n.id != null) {
+        const id = String(n.id);
+        const name = n.name || id;
+        byId.set(id, { code: id, name });
+      }
+    });
+    
+    (selectedNetworks || []).forEach(n => {
+      if (n && n.id != null) {
+        const id = String(n.id);
+        const existingName = byId.get(id)?.name;
+        const newName = n.name || id;
+        
+        const existingIsPlaceholder = existingName === id || !existingName;
+        const newIsRealName = newName !== id;
+        
+        if (!byId.has(id) || (existingIsPlaceholder && newIsRealName)) {
+          byId.set(id, { code: id, name: newName });
+        }
+      }
+    });
+    
+    return Array.from(byId.values());
+  }, [tvNetworkOptions, selectedNetworks]);
+
   return (
     <>
       {type === 'series' && tvNetworkOptions.length > 0 && (
@@ -43,14 +72,7 @@ export function StreamFilters({
             Where the show originally aired (HBO, Netflix Originals, etc.)
           </span>
           <MultiSelect
-            options={(() => {
-              const byId = new Map();
-              // First add curated networks
-              tvNetworkOptions.forEach(n => byId.set(String(n.id), { code: String(n.id), name: n.name }));
-              // Then add/overwrite with resolved selected networks (which might have better logos/names or be different networks)
-              (selectedNetworks || []).forEach(n => byId.set(String(n.id), { code: String(n.id), name: n.name }));
-              return Array.from(byId.values());
-            })()}
+            options={networkOptions}
             value={(filters.withNetworks || '').split('|').filter(Boolean)}
             onChange={(values) => onFiltersChange('withNetworks', values.join('|'))}
             placeholder="Any network"
